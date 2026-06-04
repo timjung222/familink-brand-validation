@@ -521,6 +521,39 @@
 
   .hidden { display: none !important; }
 
+  /* Sortable headers */
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  th.sortable .sort-ind { display: inline-block; margin-left: 4px; opacity: 0.4; font-size: 10px; }
+  th.sortable.sort-active .sort-ind { opacity: 1; color: var(--accent); }
+
+  /* Row checkbox / selection */
+  table.brands tr.selected { background: var(--accent-soft) !important; }
+  table.brands tr.selected:hover { background: var(--accent-soft) !important; }
+  td.col-select, th.col-select { width: 32px; padding-right: 0; }
+  td.col-select input, th.col-select input {
+    width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer;
+  }
+
+  /* Bulk action bar */
+  .bulk-bar {
+    position: sticky; bottom: 20px; margin: 16px auto 0; max-width: 720px;
+    background: var(--text); color: var(--bg);
+    border-radius: 999px; padding: 10px 18px;
+    display: flex; align-items: center; gap: 14px; justify-content: center;
+    box-shadow: var(--shadow-lg); z-index: 60;
+    font-size: 13px; font-weight: 500;
+  }
+  .bulk-bar.hidden { display: none !important; }
+  .bulk-bar .count { font-weight: 700; }
+  .bulk-bar button {
+    padding: 5px 12px; border-radius: 999px; border: 1px solid transparent;
+    background: transparent; color: var(--bg); font-size: 12.5px; font-weight: 500;
+  }
+  .bulk-bar button:hover { background: rgba(255,255,255,0.1); }
+  .bulk-bar button.danger { background: var(--danger); color: white; }
+  .bulk-bar button.danger:hover { filter: brightness(1.1); }
+
   /* Approve fx */
   .approve-fx {
     position: fixed; left: 50%; top: 50%; pointer-events: none; z-index: 9999;
@@ -688,6 +721,11 @@
           <div>표시할 브랜드가 없습니다.</div>
         </div>
       </div>
+      <div id="bulk-bar" class="bulk-bar hidden">
+        <span><span class="count" id="bulk-count">0</span>개 선택됨</span>
+        <button onclick="clearSelection()">선택 해제</button>
+        <button class="danger" onclick="bulkDelete()">🗑 일괄 삭제</button>
+      </div>
     </div>
 
     <!-- DASHBOARD -->
@@ -756,7 +794,7 @@
       </div>
       <div class="panel">
         <table class="users">
-          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드 허용</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
+          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
           <tbody id="users-tbody"></tbody>
         </table>
       </div>
@@ -873,6 +911,57 @@
   </div>
 </div>
 
+<!-- Invite User -->
+<div id="modal-invite" class="modal-bg">
+  <div class="modal wide">
+    <h3>팀원 초대</h3>
+    <div class="help" style="margin-bottom:14px">새 사용자 계정을 생성합니다. 비밀번호는 본인에게 별도로 전달하세요.</div>
+    <div class="form-group"><label>이메일</label><input id="inv-email" type="email" placeholder="user@example.com"></div>
+    <div class="form-group">
+      <label>임시 비밀번호 <span class="muted">(최소 6자)</span></label>
+      <div style="display:flex;gap:6px">
+        <input id="inv-password" type="text" placeholder="••••••••" style="flex:1">
+        <button class="btn btn-sm" onclick="generateInvitePw()">자동 생성</button>
+      </div>
+    </div>
+    <div class="form-group"><label>이름</label><input id="inv-name" type="text" placeholder="홍길동"></div>
+    <div class="form-group">
+      <label>권한</label>
+      <select id="inv-role" onchange="onInviteRoleChange()">
+        <option value="admin">Admin</option>
+        <option value="manager">Manager</option>
+        <option value="team" selected>Team</option>
+        <option value="appointment_setter">Appointment Setter</option>
+      </select>
+    </div>
+    <div class="form-group" id="inv-upload-wrap">
+      <label class="perm-toggle">
+        <span class="switch"><input id="inv-can-upload" type="checkbox"><span class="slider"></span></span>
+        <span>CSV 업로드 허용</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="inv-can-delete" type="checkbox"><span class="slider"></span></span>
+        <span>브랜드 삭제 허용</span>
+      </label>
+    </div>
+    <div class="form-group" id="inv-statuses-wrap">
+      <label>볼 수 있는 상태</label>
+      <div class="status-chips" id="inv-statuses">
+        <span class="status-chip pending active" data-status="pending" onclick="toggleStatusChip(this)">대기중</span>
+        <span class="status-chip approved active" data-status="approved" onclick="toggleStatusChip(this)">승인</span>
+        <span class="status-chip rejected active" data-status="rejected" onclick="toggleStatusChip(this)">반려</span>
+      </div>
+    </div>
+    <div id="inv-result" class="upload-result"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-invite')">취소</button>
+      <button class="btn btn-primary btn-sm" id="inv-submit" onclick="submitInvite()">계정 생성</button>
+    </div>
+  </div>
+</div>
+
 <!-- User -->
 <div id="modal-user" class="modal-bg">
   <div class="modal wide">
@@ -893,6 +982,12 @@
       <label class="perm-toggle">
         <span class="switch"><input id="u-can-upload" type="checkbox"><span class="slider"></span></span>
         <span>CSV 업로드 허용 (manager용)</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="u-can-delete" type="checkbox"><span class="slider"></span></span>
+        <span>브랜드 삭제 허용</span>
       </label>
     </div>
     <div class="form-group" id="u-statuses-wrap">
@@ -989,6 +1084,105 @@ function canSeeContacts(u) { return u && (u.role === 'admin' || u.role === 'appo
 function canSeeSocial(u) { return u && u.role !== 'appointment_setter'; }
 function canDecide(u) { return u && (u.role === 'admin' || u.role === 'manager' || u.role === 'team'); }
 function canAssign(u) { return u && (u.role === 'admin' || u.role === 'manager'); }
+function canDelete(u) { return u && (u.role === 'admin' || u.can_delete === true); }
+function canInvite(u) { return u && u.role === 'admin'; }
+
+// ----- Sort state + helpers -----
+let sortKey = null;   // 'domain' | 'categories' | 'price' | 'status' | 'platform' | 'location' | 'assignee' | 'decider'
+let sortDir = 'asc';  // 'asc' | 'desc'
+const SORT_KEYS = new Set(['domain','categories','price','status','platform','location','assignee','decider']);
+function parsePrice(s) {
+  if (!s) return null;
+  const m = String(s).match(/([\d,]+\.?\d*)/);
+  return m ? parseFloat(m[1].replace(/,/g, '')) : null;
+}
+const STATUS_ORDER = { pending: 0, approved: 1, rejected: 2 };
+function sortValue(b, key, userMap) {
+  switch (key) {
+    case 'domain': return (b.domain || '').toLowerCase();
+    case 'categories': return ((b.categories || '').split(':').find(Boolean) || '').toLowerCase();
+    case 'price': { const v = parsePrice(b.average_product_price_usd); return v == null ? -Infinity : v; }
+    case 'status': return STATUS_ORDER[b.review_status] ?? 99;
+    case 'platform': return (b.plan || b.platform || '').toLowerCase();
+    case 'location': return ((b.city || '') + ' ' + (b.country_code || '')).toLowerCase();
+    case 'assignee': return b.assigned_to ? ((userMap[b.assigned_to]?.name || b.assigned_to).toLowerCase()) : 'zzz';
+    case 'decider': return b.decided_by ? ((b.decided_by_name || userMap[b.decided_by]?.name || b.decided_by).toLowerCase()) : 'zzz';
+    default: return 0;
+  }
+}
+function applySort(rows, userMap) {
+  if (!sortKey) return rows;
+  const dir = sortDir === 'desc' ? -1 : 1;
+  return rows.slice().sort((a, b) => {
+    const va = sortValue(a, sortKey, userMap);
+    const vb = sortValue(b, sortKey, userMap);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+}
+function setSort(key) {
+  if (!SORT_KEYS.has(key)) return;
+  if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortKey = key; sortDir = 'asc'; }
+  renderBrands();
+}
+
+// ----- Selection state -----
+let selectedBrandIds = new Set();
+function toggleSelect(id) {
+  if (selectedBrandIds.has(id)) selectedBrandIds.delete(id); else selectedBrandIds.add(id);
+  updateBulkBar();
+  // Highlight the row without full re-render
+  document.querySelectorAll('tr[data-bid="' + id + '"]').forEach(tr => tr.classList.toggle('selected', selectedBrandIds.has(id)));
+  const cb = document.querySelector('input[data-bid="' + id + '"]'); if (cb) cb.checked = selectedBrandIds.has(id);
+  syncSelectAll();
+}
+function clearSelection() { selectedBrandIds.clear(); updateBulkBar(); renderBrands(); }
+function selectAllVisible(on) {
+  document.querySelectorAll('input[data-bid]').forEach(cb => {
+    const id = cb.dataset.bid;
+    if (on) selectedBrandIds.add(id); else selectedBrandIds.delete(id);
+    cb.checked = on;
+    const tr = document.querySelector('tr[data-bid="' + id + '"]'); if (tr) tr.classList.toggle('selected', on);
+  });
+  updateBulkBar();
+}
+function syncSelectAll() {
+  const all = document.querySelectorAll('input[data-bid]');
+  const checked = document.querySelectorAll('input[data-bid]:checked');
+  const head = document.getElementById('select-all-cb');
+  if (head) {
+    head.checked = all.length > 0 && checked.length === all.length;
+    head.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+}
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const count = selectedBrandIds.size;
+  if (!bar) return;
+  bar.classList.toggle('hidden', count === 0 || !canDelete(currentUser));
+  document.getElementById('bulk-count').textContent = count;
+}
+async function bulkDelete() {
+  if (!canDelete(currentUser)) { toast('삭제 권한이 없습니다'); return; }
+  const count = selectedBrandIds.size;
+  if (!count) return;
+  if (!confirm(count + '개 브랜드를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.')) return;
+  const ids = Array.from(selectedBrandIds);
+  toast('삭제 중...');
+  const CHUNK = 200;
+  let deleted = 0;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const { error } = await sb.from('brands').delete().in('id', slice);
+    if (error) { toast('일부 삭제 실패: ' + error.message); break; }
+    deleted += slice.length;
+  }
+  selectedBrandIds.clear();
+  toast(deleted + '개 삭제됨');
+  renderBrands();
+}
 
 // =====================================================
 // Theme / Logo / Favicon
@@ -1439,14 +1633,24 @@ const SVG = {
 // =====================================================
 let expanded = new Set();
 
+// Maps column key to sort key (some columns are sortable, others not)
+const COL_TO_SORT = { domain: 'domain', categories: 'categories', price: 'price', status: 'status', platform: 'platform', location: 'location', assignee: 'assignee', decider: 'decider' };
+
 async function renderBrands() {
   // header columns
   const cols = getOrderedColumns().filter(c => c.visible);
-  document.getElementById('thead-row').innerHTML = cols.map(c => {
+  const showSelect = canDelete(currentUser);
+  const headerCells = cols.map(c => {
     if (c.key === 'expand') return '<th style="width:30px"></th>';
     if (c.key === 'actions') return '<th style="text-align:right">' + c.label + '</th>';
-    return '<th>' + escapeHtml(c.label) + '</th>';
+    const sk = COL_TO_SORT[c.key];
+    if (!sk) return '<th>' + escapeHtml(c.label) + '</th>';
+    const active = sortKey === sk;
+    const arrow = active ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
+    return '<th class="sortable' + (active ? ' sort-active' : '') + '" onclick="setSort(\'' + sk + '\')">' + escapeHtml(c.label) + ' <span class="sort-ind">' + arrow + '</span></th>';
   }).join('');
+  const selectHead = showSelect ? '<th class="col-select"><input id="select-all-cb" type="checkbox" onchange="selectAllVisible(this.checked)"></th>' : '';
+  document.getElementById('thead-row').innerHTML = selectHead + headerCells;
 
   const brands = await visibleBrands();
 
@@ -1506,23 +1710,34 @@ async function renderBrands() {
     return true;
   });
 
+  const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
+  const sorted = applySort(filtered, userMap);
+
   const MAX_RENDER = 500;
-  const visible = filtered.slice(0, MAX_RENDER);
+  const visible = sorted.slice(0, MAX_RENDER);
   document.getElementById('result-count').textContent =
     filtered.length > MAX_RENDER ? ('상위 ' + MAX_RENDER + ' / 전체 ' + fmtInt(filtered.length) + '개') : (fmtInt(filtered.length) + '개');
 
   const tbody = document.getElementById('brand-tbody');
-  if (!visible.length) { tbody.innerHTML = ''; document.getElementById('empty').classList.remove('hidden'); return; }
+  if (!visible.length) {
+    tbody.innerHTML = ''; document.getElementById('empty').classList.remove('hidden');
+    updateBulkBar(); syncSelectAll();
+    return;
+  }
   document.getElementById('empty').classList.add('hidden');
 
-  const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
-
+  const colSpan = cols.length + (showSelect ? 1 : 0);
   tbody.innerHTML = visible.map(b => {
     const isEx = expanded.has(b.id);
+    const isSel = selectedBrandIds.has(b.id);
+    const selectCell = showSelect ? '<td class="col-select"><input type="checkbox" data-bid="' + b.id + '" ' + (isSel ? 'checked' : '') + ' onchange="toggleSelect(\'' + b.id + '\')"></td>' : '';
     const cells = cols.map(c => renderCell(c.key, b, userMap, isEx)).join('');
-    const detail = isEx ? '<tr class="detail-row"><td colspan="' + cols.length + '">' + renderDetail(b) + '</td></tr>' : '';
-    return '<tr class="' + (isEx ? 'expanded' : '') + '">' + cells + '</tr>' + detail;
+    const detail = isEx ? '<tr class="detail-row"><td colspan="' + colSpan + '">' + renderDetail(b) + '</td></tr>' : '';
+    return '<tr data-bid="' + b.id + '" class="' + (isEx ? 'expanded ' : '') + (isSel ? 'selected' : '') + '">' + selectCell + cells + '</tr>' + detail;
   }).join('');
+
+  updateBulkBar();
+  syncSelectAll();
 }
 
 function renderCell(key, b, userMap, isEx) {
@@ -1797,9 +2012,11 @@ let editingUser = null;
 function renderUsers() {
   const users = getProfiles();
   document.getElementById('users-tbody').innerHTML = users.map(u => {
-    const uploadCell = u.role === 'admin' ? '<span class="muted">항상 허용</span>'
+    const uploadCell = u.role === 'admin' ? '<span class="muted">항상</span>'
       : u.role === 'manager' ? ('<label class="switch"><input type="checkbox" ' + (u.can_upload ? 'checked' : '') + ' onchange="toggleUpload(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>')
       : '<span class="muted">—</span>';
+    const deleteCell = u.role === 'admin' ? '<span class="muted">항상</span>'
+      : ('<label class="switch"><input type="checkbox" ' + (u.can_delete ? 'checked' : '') + ' onchange="toggleDelete(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
     let statusCell;
     if (u.role !== 'team' && u.role !== 'appointment_setter') statusCell = '<span class="muted">전체</span>';
     else {
@@ -1813,6 +2030,7 @@ function renderUsers() {
       '<td><code>' + escapeHtml(u.username) + '</code></td>' +
       '<td><span class="role-badge role-' + u.role + '">' + (u.role === 'appointment_setter' ? 'APPT SETTER' : u.role) + '</span></td>' +
       '<td>' + uploadCell + '</td>' +
+      '<td>' + deleteCell + '</td>' +
       '<td>' + statusCell + '</td>' +
       '<td style="text-align:right">' +
         '<button class="btn btn-xs" onclick="editUser(\'' + escapeAttr(u.username) + '\')">편집</button> ' +
@@ -1820,6 +2038,15 @@ function renderUsers() {
       '</td>' +
     '</tr>';
   }).join('');
+}
+async function toggleDelete(username, val) {
+  const u = getProfiles().find(x => x.username === username);
+  if (!u) return;
+  const { error } = await sb.from('profiles').update({ can_delete: val }).eq('id', u.id);
+  if (error) { toast('업데이트 실패: ' + error.message); return; }
+  u.can_delete = val;
+  if (currentUser.username === username) currentUser.can_delete = val;
+  toast(val ? '삭제 권한 부여' : '삭제 권한 해제');
 }
 async function toggleUpload(username, val) {
   const u = getProfiles().find(x => x.username === username);
@@ -1848,12 +2075,62 @@ function onRoleChange() {
   document.getElementById('u-statuses-wrap').style.display = (role === 'team' || role === 'appointment_setter') ? '' : 'none';
 }
 function toggleStatusChip(el) { el.classList.toggle('active'); }
+function generateInvitePw() {
+  const charset = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 12; i++) pw += charset[Math.floor(Math.random() * charset.length)];
+  document.getElementById('inv-password').value = pw;
+}
+function onInviteRoleChange() {
+  const role = document.getElementById('inv-role').value;
+  document.getElementById('inv-upload-wrap').style.display = (role === 'manager' || role === 'admin') ? '' : 'none';
+  document.getElementById('inv-statuses-wrap').style.display = (role === 'team' || role === 'appointment_setter') ? '' : 'none';
+  // Defaults
+  document.getElementById('inv-can-upload').checked = role === 'admin';
+}
 function openUserModal() {
-  // New users must sign up themselves (Supabase Auth requires their own credentials).
-  // We give admin a copyable signup link instead.
-  const url = location.origin + location.pathname;
-  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
-  alert('새 사용자는 직접 가입해야 합니다.\n\n다음 URL을 팀원에게 공유하고, 회원가입 후 admin이 사용자 관리에서 역할을 변경하세요:\n\n' + url + '\n\n(URL이 클립보드에 복사되었습니다)');
+  if (!canInvite(currentUser)) { toast('admin만 사용자 초대 가능'); return; }
+  document.getElementById('inv-email').value = '';
+  document.getElementById('inv-name').value = '';
+  document.getElementById('inv-role').value = 'team';
+  document.getElementById('inv-can-upload').checked = false;
+  document.getElementById('inv-can-delete').checked = false;
+  document.querySelectorAll('#inv-statuses .status-chip').forEach(el => el.classList.add('active'));
+  generateInvitePw();
+  onInviteRoleChange();
+  const res = document.getElementById('inv-result'); res.className = 'upload-result'; res.textContent = '';
+  document.getElementById('modal-invite').classList.add('active');
+}
+async function submitInvite() {
+  const email = document.getElementById('inv-email').value.trim();
+  const password = document.getElementById('inv-password').value;
+  const name = document.getElementById('inv-name').value.trim() || email.split('@')[0];
+  const role = document.getElementById('inv-role').value;
+  const can_upload = document.getElementById('inv-can-upload').checked;
+  const can_delete = document.getElementById('inv-can-delete').checked;
+  const visible_statuses = Array.from(document.querySelectorAll('#inv-statuses .status-chip.active')).map(el => el.dataset.status);
+  const res = document.getElementById('inv-result');
+  if (!email || !password) { res.className = 'upload-result error show'; res.textContent = '이메일/비밀번호 필수'; return; }
+  if (password.length < 6) { res.className = 'upload-result error show'; res.textContent = '비밀번호 최소 6자'; return; }
+  const btn = document.getElementById('inv-submit'); btn.disabled = true; btn.textContent = '생성 중...';
+  res.className = 'upload-result show'; res.textContent = '계정 생성 중...';
+  try {
+    const { data, error } = await sb.functions.invoke('invite-user', {
+      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, visible_statuses }
+    });
+    if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
+    res.className = 'upload-result show';
+    res.innerHTML = '<b>생성 완료.</b><br>이메일: <code>' + escapeHtml(email) + '</code><br>비밀번호: <code>' + escapeHtml(password) + '</code><br>이 정보를 본인에게 전달하세요.';
+    toast('팀원 초대 완료');
+    await loadProfiles();
+    renderUsers();
+  } catch (e) {
+    res.className = 'upload-result error show';
+    res.textContent = '실패: ' + (e.message || e);
+  } finally {
+    btn.disabled = false; btn.textContent = '계정 생성';
+  }
 }
 function editUser(username) {
   const u = getProfiles().find(x => x.username === username); if (!u) return;
@@ -1862,13 +2139,13 @@ function editUser(username) {
   document.getElementById('u-name').value = u.name;
   document.getElementById('u-username').value = u.username;
   document.getElementById('u-username').disabled = false;
-  // Password not stored in profile (Supabase Auth handles it). Hide / placeholder.
   const pwField = document.getElementById('u-password');
   pwField.value = '';
-  pwField.placeholder = '(Supabase Auth가 관리 — 여기서 변경 불가)';
+  pwField.placeholder = '(Supabase Auth가 관리 — 변경 불가)';
   pwField.disabled = true;
   document.getElementById('u-role').value = u.role;
   document.getElementById('u-can-upload').checked = !!u.can_upload;
+  document.getElementById('u-can-delete').checked = !!u.can_delete;
   const vs = new Set(u.visible_statuses || []);
   document.querySelectorAll('#u-statuses .status-chip').forEach(el => el.classList.toggle('active', vs.has(el.dataset.status)));
   onRoleChange();
@@ -1880,11 +2157,13 @@ async function saveUser() {
   const username = document.getElementById('u-username').value.trim();
   const role = document.getElementById('u-role').value;
   const can_upload = document.getElementById('u-can-upload').checked;
+  const can_delete = document.getElementById('u-can-delete').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#u-statuses .status-chip.active')).map(el => el.dataset.status);
   if (!name || !username) { alert('이름과 아이디를 입력해주세요'); return; }
   const update = {
     name, username, role,
     can_upload: role === 'admin' ? true : (role === 'manager' ? can_upload : false),
+    can_delete,
     visible_statuses: (role === 'team' || role === 'appointment_setter') ? visible_statuses : []
   };
   const { error } = await sb.from('profiles').update(update).eq('id', editingUser);
