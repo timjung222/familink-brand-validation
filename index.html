@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #f5f6f8;
@@ -597,17 +598,29 @@
   <div class="login-card">
     <div class="login-logo" id="login-logo"></div>
     <div class="login-sub">Brand Validation Portal</div>
-    <div class="form-group"><label>아이디</label><input id="login-username" type="text" autocomplete="username" placeholder="username"></div>
-    <div class="form-group"><label>비밀번호</label><input id="login-password" type="password" autocomplete="current-password" placeholder="password"></div>
-    <button class="btn btn-primary btn-block" onclick="login()">로그인</button>
-    <div id="login-error" class="login-error"></div>
-    <div class="login-hint">
-      <b>테스트 계정</b><br>
-      Admin: <code>admin</code> / <code>admin123</code><br>
-      Manager: <code>manager1</code> / <code>manager123</code><br>
-      Team: <code>team1</code> · <code>team2</code> / <code>team123</code><br>
-      Appointment Setter: <code>appt1</code> / <code>appt123</code>
+
+    <div class="period-toggle" style="display:flex;width:100%;margin-bottom:18px;" id="auth-toggle">
+      <button data-mode="login" class="active" onclick="setAuthMode('login')" style="flex:1">로그인</button>
+      <button data-mode="signup" onclick="setAuthMode('signup')" style="flex:1">회원가입</button>
     </div>
+
+    <!-- LOGIN form -->
+    <div id="auth-login">
+      <div class="form-group"><label>이메일</label><input id="login-email" type="email" autocomplete="email" placeholder="you@familink.global"></div>
+      <div class="form-group"><label>비밀번호</label><input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
+    </div>
+
+    <!-- SIGNUP form -->
+    <div id="auth-signup" class="hidden">
+      <div class="form-group"><label>이메일</label><input id="su-email" type="email" autocomplete="email" placeholder="you@familink.global"></div>
+      <div class="form-group"><label>비밀번호 <span class="muted">(최소 6자)</span></label><input id="su-password" type="password" autocomplete="new-password" placeholder="••••••••"></div>
+      <div class="form-group"><label>이름</label><input id="su-name" type="text" placeholder="홍길동"></div>
+      <button class="btn btn-primary btn-block" onclick="doSignup()">가입 + 입장</button>
+      <div class="help" style="margin-top:10px;text-align:center">처음 가입한 사람은 자동으로 admin이 됩니다.</div>
+    </div>
+
+    <div id="login-error" class="login-error"></div>
   </div>
 </div>
 
@@ -903,11 +916,14 @@
 
 <script>
 // =====================================================
-// Storage
+// Supabase client + storage
 // =====================================================
+const SUPABASE_URL = 'https://fosxrscmgnxaywewaptc.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JtWWPppHxvRjrgknVO4BmA_L_DfPQJx';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// localStorage keys for UI prefs only (theme/logo/favicon/columns)
 const LS = {
-  users: 'familink_users_v3',
-  session: 'familink_session_v3',
   theme: 'familink_theme_v1',
   logo: 'familink_logo_v1',
   favicon: 'familink_favicon_v1',
@@ -918,42 +934,56 @@ function loadRaw(key, fb) { try { return localStorage.getItem(key) || fb; } catc
 function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 function saveRaw(key, val) { localStorage.setItem(key, val); }
 
-const IDB_NAME = 'familink_db';
-const IDB_VERSION = 1;
-const IDB_STORE = 'brands';
-let _db = null;
-function openDB() {
-  if (_db) return Promise.resolve(_db);
-  return new Promise((res, rej) => {
-    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
-    req.onupgradeneeded = e => { const db = e.target.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: 'id' }); };
-    req.onsuccess = () => { _db = req.result; res(_db); };
-    req.onerror = () => rej(req.error);
-  });
+// ----- Profiles cache (loaded once after login) -----
+let _profilesCache = [];
+async function loadProfiles() {
+  const { data, error } = await sb.from('profiles').select('*').order('created_at');
+  if (error) { console.warn('loadProfiles error:', error); return []; }
+  _profilesCache = data || [];
+  return _profilesCache;
 }
-async function dbGetAllBrands() { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const r = tx.objectStore(IDB_STORE).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); }); }
-async function dbGetBrand(id) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readonly'); const r = tx.objectStore(IDB_STORE).get(id); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); }); }
-async function dbPutBrand(b) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).put(b); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
-async function dbBulkPut(arr) { if (!arr.length) return; const db = await openDB(); const B = 500; for (let i = 0; i < arr.length; i += B) { const slice = arr.slice(i, i + B); await new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); const s = tx.objectStore(IDB_STORE); slice.forEach(b => s.put(b)); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); } }
-async function dbDeleteBrand(id) { const db = await openDB(); return new Promise((res, rej) => { const tx = db.transaction(IDB_STORE, 'readwrite'); tx.objectStore(IDB_STORE).delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+function getProfiles() { return _profilesCache; }
 
-// =====================================================
-// Seed users
-// =====================================================
-function seedUsers() {
-  let users = load(LS.users, null);
-  if (!users) {
-    users = [
-      { username:'admin', password:'admin123', role:'admin', name:'Tim (Admin)', can_upload:true, visible_statuses:[] },
-      { username:'manager1', password:'manager123', role:'manager', name:'Manager One', can_upload:false, visible_statuses:[] },
-      { username:'team1', password:'team123', role:'team', name:'Team Member 1', can_upload:false, visible_statuses:['pending','approved'] },
-      { username:'team2', password:'team123', role:'team', name:'Team Member 2', can_upload:false, visible_statuses:['approved','rejected'] },
-      { username:'appt1', password:'appt123', role:'appointment_setter', name:'Appointment Setter 1', can_upload:false, visible_statuses:['approved'] },
-    ];
-    save(LS.users, users);
+// ----- Brand data layer (Supabase) -----
+async function dbGetAllBrands() {
+  // Fetch all brands. Supabase default limit is 1000; paginate if needed.
+  const all = [];
+  const PAGE = 1000;
+  let from = 0;
+  for (;;) {
+    const { data, error } = await sb.from('brands').select('*').range(from, from + PAGE - 1).order('uploaded_at', { ascending: false });
+    if (error) { console.warn('dbGetAllBrands error:', error); break; }
+    all.push(...(data || []));
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
   }
-  return users;
+  return all;
 }
+async function dbGetBrand(id) {
+  const { data, error } = await sb.from('brands').select('*').eq('id', id).single();
+  if (error) return null;
+  return data;
+}
+async function dbPutBrand(b) {
+  const clean = filterBrandFields(b);
+  const { error } = await sb.from('brands').upsert(clean);
+  if (error) { console.warn('dbPutBrand:', error); throw error; }
+}
+async function dbBulkPut(arr) {
+  if (!arr.length) return;
+  const CHUNK = 500;
+  for (let i = 0; i < arr.length; i += CHUNK) {
+    const slice = arr.slice(i, i + CHUNK).map(filterBrandFields);
+    const { error } = await sb.from('brands').upsert(slice);
+    if (error) { console.warn('dbBulkPut chunk error:', error); throw error; }
+  }
+}
+async function dbDeleteBrand(id) {
+  const { error } = await sb.from('brands').delete().eq('id', id);
+  if (error) console.warn(error);
+}
+
+// ----- Permission helpers -----
 function canUpload(u) { return u && (u.role === 'admin' || (u.role === 'manager' && u.can_upload)); }
 function canSeeContacts(u) { return u && (u.role === 'admin' || u.role === 'appointment_setter'); }
 function canSeeSocial(u) { return u && u.role !== 'appointment_setter'; }
@@ -1087,33 +1117,82 @@ function renderColumnsModal() {
 }
 
 // =====================================================
-// Login
+// Auth (Supabase)
 // =====================================================
 let currentUser = null;
-function login() {
-  const u = document.getElementById('login-username').value.trim();
-  const p = document.getElementById('login-password').value;
-  const users = load(LS.users, []);
-  const user = users.find(x => x.username === u && x.password === p);
-  if (!user) { document.getElementById('login-error').textContent = '아이디 또는 비밀번호가 잘못되었습니다.'; return; }
-  save(LS.session, { username: user.username });
-  currentUser = user;
-  showApp();
+
+function setAuthMode(mode) {
+  document.querySelectorAll('#auth-toggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.getElementById('auth-login').classList.toggle('hidden', mode !== 'login');
+  document.getElementById('auth-signup').classList.toggle('hidden', mode !== 'signup');
+  document.getElementById('login-error').textContent = '';
 }
-function logout() {
-  localStorage.removeItem(LS.session);
+
+function showLoginErr(msg) { document.getElementById('login-error').textContent = msg; }
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) { showLoginErr('이메일과 비밀번호를 입력해주세요.'); return; }
+  showLoginErr('로그인 중...');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { showLoginErr(error.message); return; }
+  showLoginErr('');
+  await afterLogin();
+}
+
+async function doSignup() {
+  const email = document.getElementById('su-email').value.trim();
+  const password = document.getElementById('su-password').value;
+  const name = document.getElementById('su-name').value.trim() || email.split('@')[0];
+  if (!email || !password) { showLoginErr('모든 항목을 입력해주세요.'); return; }
+  if (password.length < 6) { showLoginErr('비밀번호는 최소 6자 이상이어야 합니다.'); return; }
+  showLoginErr('가입 중...');
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { data: { name, username: email.split('@')[0] } }
+  });
+  if (error) { showLoginErr(error.message); return; }
+  if (!data.session) {
+    showLoginErr('가입되었습니다. 이메일 확인 링크를 클릭한 후 로그인하세요.');
+    return;
+  }
+  showLoginErr('');
+  await afterLogin();
+}
+
+async function logout() {
+  await sb.auth.signOut();
   currentUser = null;
+  _profilesCache = [];
   document.getElementById('app').classList.remove('active');
   document.getElementById('login').style.display = 'flex';
-  document.getElementById('login-username').value = '';
+  document.getElementById('login-email').value = '';
   document.getElementById('login-password').value = '';
-  document.getElementById('login-error').textContent = '';
+  showLoginErr('');
   applyLogoEverywhere();
 }
-function restoreSession() {
-  const s = load(LS.session, null); if (!s) return false;
-  const u = load(LS.users, []).find(x => x.username === s.username);
-  if (!u) return false; currentUser = u; return true;
+
+async function restoreSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return false;
+  return await loadCurrentProfile(session.user);
+}
+
+async function loadCurrentProfile(authUser) {
+  const { data: profile, error } = await sb.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
+  if (error || !profile) return false;
+  currentUser = { ...profile, email: authUser.email };
+  return true;
+}
+
+async function afterLogin() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const ok = await loadCurrentProfile(session.user);
+  if (!ok) { showLoginErr('프로필을 찾을 수 없습니다.'); return; }
+  await loadProfiles();
+  showApp();
 }
 function showApp() {
   document.getElementById('login').style.display = 'none';
@@ -1202,24 +1281,29 @@ function computeDiff(oldB, newRow) {
   return diff;
 }
 
+const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by']);
+function filterBrandFields(o) {
+  const out = {};
+  Object.keys(o).forEach(k => { if (ALLOWED_BRAND_COLS.has(k) && o[k] !== undefined) out[k] = o[k]; });
+  return out;
+}
+
 async function importBrands(rawRows) {
   const existing = await dbGetAllBrands();
   const byDomain = {}; existing.forEach(b => { byDomain[(b.domain || '').toLowerCase()] = b; });
-  const now = Date.now();
   const toAdd = [];
   const toUpdate = [];
-  const dupesList = []; // for bulk modal: [{ existingId, existingDomain, diff }]
+  const dupesList = [];
   let dupesNoChanges = 0, skipped = 0;
-  rawRows.forEach((r, idx) => {
+  const nowIso = new Date().toISOString();
+  rawRows.forEach((r) => {
     const dom = (r.domain || '').toLowerCase();
     if (!dom) { skipped++; return; }
     const ex = byDomain[dom];
     if (ex) {
       const diff = computeDiff(ex, r);
       if (Object.keys(diff).length) {
-        ex.pending_update = diff;
-        ex.last_duplicate_at = now;
-        toUpdate.push(ex);
+        toUpdate.push({ id: ex.id, pending_update: diff });
         dupesList.push({ existingId: ex.id, existingDomain: ex.domain, diff });
       } else {
         dupesNoChanges++;
@@ -1227,15 +1311,23 @@ async function importBrands(rawRows) {
       return;
     }
     byDomain[dom] = r;
-    toAdd.push(Object.assign({}, r, {
-      id: 'b_' + now + '_' + idx + '_' + Math.random().toString(36).slice(2,8),
-      review_status: 'pending', assigned_to: null,
-      decided_by: null, decided_by_name: null, decided_at: null, decision_note: null,
-      uploaded_at: now, uploaded_by: currentUser.username,
+    toAdd.push(filterBrandFields(Object.assign({}, r, {
+      review_status: 'pending',
+      uploaded_at: nowIso,
+      uploaded_by: currentUser.username,
       pending_update: null,
-    }));
+    })));
   });
-  await dbBulkPut(toAdd.concat(toUpdate));
+  if (toAdd.length) {
+    const { error } = await sb.from('brands').insert(toAdd);
+    if (error) { console.warn('insert error:', error); throw new Error(error.message); }
+  }
+  if (toUpdate.length) {
+    // Update pending_update one by one (small N typically)
+    for (const u of toUpdate) {
+      await sb.from('brands').update({ pending_update: u.pending_update }).eq('id', u.id);
+    }
+  }
   return { added: toAdd.length, dupes: dupesList, dupesNoChanges, skipped };
 }
 
@@ -1390,7 +1482,7 @@ async function renderBrands() {
   if (currentUser.role === 'team') aSel.classList.add('hidden');
   else {
     aSel.classList.remove('hidden');
-    const teams = load(LS.users, []).filter(u => u.role === 'team');
+    const teams = getProfiles().filter(u => u.role === 'team');
     aSel.innerHTML = '<option value="">전체 담당자</option><option value="__unassigned">미할당</option>' +
       teams.map(u => '<option value="' + u.username + '">' + escapeHtml(u.name) + '</option>').join('');
     aSel.value = aCur;
@@ -1423,7 +1515,7 @@ async function renderBrands() {
   if (!visible.length) { tbody.innerHTML = ''; document.getElementById('empty').classList.remove('hidden'); return; }
   document.getElementById('empty').classList.add('hidden');
 
-  const userMap = {}; load(LS.users, []).forEach(u => userMap[u.username] = u);
+  const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
 
   tbody.innerHTML = visible.map(b => {
     const isEx = expanded.has(b.id);
@@ -1596,7 +1688,7 @@ function toggleExpand(id) {
 let assignTargetId = null;
 async function openAssign(id) {
   assignTargetId = id;
-  const users = load(LS.users, []).filter(u => u.role === 'team');
+  const users = getProfiles().filter(u => u.role === 'team');
   const sel = document.getElementById('assign-select');
   sel.innerHTML = '<option value="">— 미할당 —</option>' + users.map(u => '<option value="' + u.username + '">' + escapeHtml(u.name) + '</option>').join('');
   const b = await dbGetBrand(id);
@@ -1614,7 +1706,7 @@ async function confirmAssign() {
 // Bulk assign
 // =====================================================
 function openBulkAssign() {
-  const users = load(LS.users, []).filter(u => u.role === 'team');
+  const users = getProfiles().filter(u => u.role === 'team');
   document.getElementById('bulk-user').innerHTML = users.map(u => '<option value="' + u.username + '">' + escapeHtml(u.name) + '</option>').join('');
   document.getElementById('bulk-count').value = '';
   document.getElementById('bulk-scope').value = 'unassigned_pending';
@@ -1703,7 +1795,7 @@ async function undoDecision(id) {
 // =====================================================
 let editingUser = null;
 function renderUsers() {
-  const users = load(LS.users, []);
+  const users = getProfiles();
   document.getElementById('users-tbody').innerHTML = users.map(u => {
     const uploadCell = u.role === 'admin' ? '<span class="muted">항상 허용</span>'
       : u.role === 'manager' ? ('<label class="switch"><input type="checkbox" ' + (u.can_upload ? 'checked' : '') + ' onchange="toggleUpload(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>')
@@ -1729,20 +1821,25 @@ function renderUsers() {
     '</tr>';
   }).join('');
 }
-function toggleUpload(username, val) {
-  const users = load(LS.users, []); const u = users.find(x => x.username === username);
-  if (!u) return; u.can_upload = val; save(LS.users, users);
+async function toggleUpload(username, val) {
+  const u = getProfiles().find(x => x.username === username);
+  if (!u) return;
+  const { error } = await sb.from('profiles').update({ can_upload: val }).eq('id', u.id);
+  if (error) { toast('업데이트 실패: ' + error.message); return; }
+  u.can_upload = val;
   if (currentUser.username === username) currentUser.can_upload = val;
   toast(val ? '업로드 권한 부여' : '업로드 권한 해제'); buildTabs();
 }
-function toggleUserStatus(username, status) {
-  const users = load(LS.users, []); const u = users.find(x => x.username === username);
+async function toggleUserStatus(username, status) {
+  const u = getProfiles().find(x => x.username === username);
   if (!u || (u.role !== 'team' && u.role !== 'appointment_setter')) return;
   const set = new Set(u.visible_statuses || []);
   if (set.has(status)) set.delete(status); else set.add(status);
-  u.visible_statuses = Array.from(set);
-  save(LS.users, users);
-  if (currentUser.username === username) currentUser.visible_statuses = u.visible_statuses;
+  const arr = Array.from(set);
+  const { error } = await sb.from('profiles').update({ visible_statuses: arr }).eq('id', u.id);
+  if (error) { toast('업데이트 실패: ' + error.message); return; }
+  u.visible_statuses = arr;
+  if (currentUser.username === username) currentUser.visible_statuses = arr;
   renderUsers();
 }
 function onRoleChange() {
@@ -1752,26 +1849,24 @@ function onRoleChange() {
 }
 function toggleStatusChip(el) { el.classList.toggle('active'); }
 function openUserModal() {
-  editingUser = null;
-  document.getElementById('user-modal-title').textContent = '사용자 추가';
-  document.getElementById('u-name').value = '';
-  document.getElementById('u-username').value = '';
-  document.getElementById('u-password').value = '';
-  document.getElementById('u-role').value = 'team';
-  document.getElementById('u-can-upload').checked = false;
-  document.getElementById('u-username').disabled = false;
-  document.querySelectorAll('#u-statuses .status-chip').forEach(el => el.classList.add('active'));
-  onRoleChange();
-  document.getElementById('modal-user').classList.add('active');
+  // New users must sign up themselves (Supabase Auth requires their own credentials).
+  // We give admin a copyable signup link instead.
+  const url = location.origin + location.pathname;
+  if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+  alert('새 사용자는 직접 가입해야 합니다.\n\n다음 URL을 팀원에게 공유하고, 회원가입 후 admin이 사용자 관리에서 역할을 변경하세요:\n\n' + url + '\n\n(URL이 클립보드에 복사되었습니다)');
 }
 function editUser(username) {
-  const u = load(LS.users, []).find(x => x.username === username); if (!u) return;
-  editingUser = username;
+  const u = getProfiles().find(x => x.username === username); if (!u) return;
+  editingUser = u.id;
   document.getElementById('user-modal-title').textContent = '사용자 편집';
   document.getElementById('u-name').value = u.name;
   document.getElementById('u-username').value = u.username;
-  document.getElementById('u-username').disabled = true;
-  document.getElementById('u-password').value = u.password;
+  document.getElementById('u-username').disabled = false;
+  // Password not stored in profile (Supabase Auth handles it). Hide / placeholder.
+  const pwField = document.getElementById('u-password');
+  pwField.value = '';
+  pwField.placeholder = '(Supabase Auth가 관리 — 여기서 변경 불가)';
+  pwField.disabled = true;
   document.getElementById('u-role').value = u.role;
   document.getElementById('u-can-upload').checked = !!u.can_upload;
   const vs = new Set(u.visible_statuses || []);
@@ -1779,36 +1874,32 @@ function editUser(username) {
   onRoleChange();
   document.getElementById('modal-user').classList.add('active');
 }
-function saveUser() {
+async function saveUser() {
+  if (!editingUser) { closeModal('modal-user'); return; }
   const name = document.getElementById('u-name').value.trim();
   const username = document.getElementById('u-username').value.trim();
-  const password = document.getElementById('u-password').value;
   const role = document.getElementById('u-role').value;
   const can_upload = document.getElementById('u-can-upload').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#u-statuses .status-chip.active')).map(el => el.dataset.status);
-  if (!name || !username || !password) { alert('모든 항목을 입력해주세요'); return; }
-  const users = load(LS.users, []);
-  if (editingUser) {
-    const u = users.find(x => x.username === editingUser);
-    if (u) {
-      u.name = name; u.password = password; u.role = role;
-      u.can_upload = (role === 'admin') ? true : (role === 'manager' ? can_upload : false);
-      u.visible_statuses = (role === 'team' || role === 'appointment_setter') ? visible_statuses : [];
-    }
-    if (currentUser.username === editingUser) currentUser = users.find(x => x.username === editingUser);
-  } else {
-    if (users.find(x => x.username === username)) { alert('이미 존재하는 아이디입니다'); return; }
-    users.push({ username, password, role, name,
-      can_upload: (role === 'admin') ? true : (role === 'manager' ? can_upload : false),
-      visible_statuses: (role === 'team' || role === 'appointment_setter') ? visible_statuses : []
-    });
-  }
-  save(LS.users, users); closeModal('modal-user'); renderUsers(); buildTabs(); toast('저장되었습니다');
+  if (!name || !username) { alert('이름과 아이디를 입력해주세요'); return; }
+  const update = {
+    name, username, role,
+    can_upload: role === 'admin' ? true : (role === 'manager' ? can_upload : false),
+    visible_statuses: (role === 'team' || role === 'appointment_setter') ? visible_statuses : []
+  };
+  const { error } = await sb.from('profiles').update(update).eq('id', editingUser);
+  if (error) { alert('저장 실패: ' + error.message); return; }
+  await loadProfiles();
+  if (currentUser.id === editingUser) currentUser = { ...currentUser, ...update };
+  closeModal('modal-user'); renderUsers(); buildTabs(); toast('저장되었습니다');
 }
-function removeUser(username) {
-  if (!confirm('이 사용자를 삭제하시겠습니까?')) return;
-  let users = load(LS.users, []); users = users.filter(u => u.username !== username);
-  save(LS.users, users); renderUsers(); toast('삭제되었습니다');
+async function removeUser(username) {
+  if (!confirm('이 사용자의 프로필을 삭제하시겠습니까? (Supabase Auth 계정은 대시보드에서 별도 삭제해야 합니다.)')) return;
+  const u = getProfiles().find(x => x.username === username); if (!u) return;
+  const { error } = await sb.from('profiles').delete().eq('id', u.id);
+  if (error) { alert('삭제 실패: ' + error.message); return; }
+  await loadProfiles();
+  renderUsers(); toast('삭제되었습니다');
 }
 
 // =====================================================
@@ -2000,7 +2091,7 @@ async function renderDashboard() {
   const sel = document.getElementById('dash-user-filter');
   if (currentUser.role === 'admin' || currentUser.role === 'manager') {
     sel.classList.remove('hidden');
-    const users = load(LS.users, []).filter(u => u.role !== 'appointment_setter');
+    const users = getProfiles().filter(u => u.role !== 'appointment_setter');
     const cur = sel.value || dashUser;
     sel.innerHTML = '<option value="">전체 팀원</option>' +
       users.map(u => '<option value="' + u.username + '">' + escapeHtml(u.name) + '</option>').join('');
@@ -2045,7 +2136,7 @@ async function renderDashboard() {
     '<div class="stat-card"><div class="label">최근 ' + periodLabel + ' 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(tot.r) + '</div></div>' +
     '<div class="stat-card"><div class="label">승인 비율</div><div class="value">' + rate + '%</div></div>';
 
-  const who = dashUser ? (load(LS.users, []).find(u => u.username === dashUser) || {}).name : null;
+  const who = dashUser ? (getProfiles().find(u => u.username === dashUser) || {}).name : null;
   document.getElementById('dash-subtitle').textContent =
     currentUser.role === 'team' ? '내 활동 통계' :
     (who ? who + '의 활동 통계' : '팀 전체의 활동 통계');
@@ -2130,7 +2221,7 @@ function renderUserBreakdown(all, start, end) {
     if (!byUser[u]) byUser[u] = { name: u, approved: 0, rejected: 0, uploaded: 0 };
     byUser[u].uploaded = (byUser[u].uploaded || 0) + 1;
   });
-  const users = load(LS.users, []);
+  const users = getProfiles();
   const userMap = {}; users.forEach(u => userMap[u.username] = u);
   const rows = Object.keys(byUser).map(uname => {
     const s = byUser[uname];
@@ -2164,8 +2255,11 @@ function renderUserBreakdown(all, start, end) {
   document.addEventListener('change', e => { if (e.target && e.target.id === id) renderBrands(); });
 });
 document.addEventListener('change', e => { if (e.target && e.target.id === 'bulk-scope') updateBulkHelp(); });
-document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-document.getElementById('login-username').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+['su-email','su-password','su-name'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
+});
 
 // Logo/favicon file handlers
 document.getElementById('logo-file').addEventListener('change', async e => { if (!e.target.files[0]) return; const url = await readImageAsDataUrl(e.target.files[0]); setLogo(url); toast('로고 변경됨'); });
@@ -2177,11 +2271,23 @@ document.getElementById('favicon-file').addEventListener('change', async e => { 
 (async function init() {
   applyTheme(localStorage.getItem(LS.theme) || 'light');
   applyFavicon();
-  seedUsers();
   applyLogoEverywhere();
   setupUpload();
-  try { await openDB(); } catch(e) { console.warn('DB init failed:', e); }
-  if (restoreSession()) showApp();
+
+  // Listen for sign-out from elsewhere
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' && currentUser) {
+      currentUser = null;
+      _profilesCache = [];
+      document.getElementById('app').classList.remove('active');
+      document.getElementById('login').style.display = 'flex';
+    }
+  });
+
+  if (await restoreSession()) {
+    await loadProfiles();
+    showApp();
+  }
 })();
 </script>
 </body>
