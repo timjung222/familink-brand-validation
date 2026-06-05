@@ -535,6 +535,23 @@
     width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer;
   }
 
+  /* Pagination */
+  .pagination {
+    display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: center;
+    padding: 12px 14px; border-top: 1px solid var(--border); background: var(--panel-2);
+    font-size: 12.5px;
+  }
+  .pagination button {
+    padding: 5px 11px; min-width: 32px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-weight: 500;
+    font-feature-settings: 'tnum';
+  }
+  .pagination button:hover:not(:disabled):not(.active) { background: var(--panel-3); border-color: var(--border-strong); }
+  .pagination button.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+  .pagination .dots { padding: 0 6px; color: var(--text-dim); }
+  .pagination .info { font-size: 12px; color: var(--text-dim); margin-left: 12px; font-feature-settings: 'tnum'; }
+
   /* Bulk action bar */
   .bulk-bar {
     position: sticky; bottom: 20px; margin: 16px auto 0; max-width: 720px;
@@ -706,8 +723,14 @@
           <option value="rejected">반려</option>
           <option value="__dup">중복 업데이트 있음</option>
         </select>
+        <select id="filter-category"><option value="">전체 카테고리</option></select>
         <select id="filter-country"><option value="">전체 국가</option></select>
         <select id="filter-assignee"><option value="">전체 담당자</option></select>
+        <select id="filter-domlen">
+          <option value="">도메인 길이 전체</option>
+          <option value="long">15자 이상</option>
+          <option value="short">15자 미만</option>
+        </select>
         <div class="spacer"></div>
         <span class="result-count" id="result-count"></span>
       </div>
@@ -720,6 +743,7 @@
           <div class="icon">∅</div>
           <div>표시할 브랜드가 없습니다.</div>
         </div>
+        <div id="pagination" class="pagination" style="display:none"></div>
       </div>
       <div id="bulk-bar" class="bulk-bar hidden">
         <span><span class="count" id="bulk-count">0</span>개 선택됨</span>
@@ -1126,6 +1150,32 @@ function setSort(key) {
   if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
   else { sortKey = key; sortDir = 'asc'; }
   renderBrands();
+}
+
+// ----- Pagination state -----
+const PAGE_SIZE = 500;
+let currentPage = 1;
+function goPage(p) { currentPage = Math.max(1, p); renderBrands(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function renderPagination(total) {
+  const wrap = document.getElementById('pagination');
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (totalPages <= 1) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = 'flex';
+  const cur = currentPage;
+  const want = new Set([1, totalPages, cur, cur - 1, cur + 1, cur - 2, cur + 2]);
+  const pages = Array.from(want).filter(p => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  const parts = [];
+  parts.push('<button ' + (cur === 1 ? 'disabled' : '') + ' onclick="goPage(' + (cur - 1) + ')">‹</button>');
+  let last = 0;
+  for (const p of pages) {
+    if (last && p > last + 1) parts.push('<span class="dots">…</span>');
+    parts.push('<button ' + (p === cur ? 'class="active"' : '') + ' onclick="goPage(' + p + ')">' + p + '</button>');
+    last = p;
+  }
+  parts.push('<button ' + (cur === totalPages ? 'disabled' : '') + ' onclick="goPage(' + (cur + 1) + ')">›</button>');
+  parts.push('<span class="info">총 ' + fmtInt(total) + '개 · ' + cur + ' / ' + totalPages + ' 페이지</span>');
+  wrap.innerHTML = parts.join('');
 }
 
 // ----- Selection state -----
@@ -1681,6 +1731,19 @@ async function renderBrands() {
   cSel.innerHTML = '<option value="">전체 국가</option>' + countries.map(c => '<option value="' + c + '">' + c + '</option>').join('');
   cSel.value = cCur;
 
+  // Category filter: collect top-level categories across all brands
+  const catSet = new Set();
+  brands.forEach(b => {
+    (b.categories || '').split(':').filter(Boolean).forEach(c => {
+      const top = c.split('/').filter(Boolean)[0];
+      if (top) catSet.add(top);
+    });
+  });
+  const catList = Array.from(catSet).sort();
+  const catSel = document.getElementById('filter-category'); const catCur = catSel.value;
+  catSel.innerHTML = '<option value="">전체 카테고리</option>' + catList.map(c => '<option value="' + escapeAttr(c) + '">' + escapeHtml(c) + '</option>').join('');
+  catSel.value = catCur;
+
   const aSel = document.getElementById('filter-assignee');
   const aCur = aSel.value;
   if (currentUser.role === 'team') aSel.classList.add('hidden');
@@ -1695,12 +1758,20 @@ async function renderBrands() {
   const q = document.getElementById('search').value.toLowerCase().trim();
   const fs = document.getElementById('filter-status').value;
   const fc = document.getElementById('filter-country').value;
+  const fcat = document.getElementById('filter-category').value;
+  const fdl = document.getElementById('filter-domlen').value;
   const fa = aSel.classList.contains('hidden') ? '' : aSel.value;
 
   const filtered = brands.filter(b => {
     if (fs === '__dup') { if (!b.pending_update) return false; }
     else if (fs && b.review_status !== fs) return false;
     if (fc && b.country_code !== fc) return false;
+    if (fcat) {
+      const tops = (b.categories || '').split(':').filter(Boolean).map(c => c.split('/').filter(Boolean)[0]);
+      if (!tops.includes(fcat)) return false;
+    }
+    if (fdl === 'long' && (b.domain || '').length < 15) return false;
+    if (fdl === 'short' && (b.domain || '').length >= 15) return false;
     if (fa === '__unassigned' && b.assigned_to) return false;
     if (fa && fa !== '__unassigned' && b.assigned_to !== fa) return false;
     if (q) {
@@ -1713,10 +1784,15 @@ async function renderBrands() {
   const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
   const sorted = applySort(filtered, userMap);
 
-  const MAX_RENDER = 500;
-  const visible = sorted.slice(0, MAX_RENDER);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const startIdx = (currentPage - 1) * PAGE_SIZE;
+  const visible = sorted.slice(startIdx, startIdx + PAGE_SIZE);
   document.getElementById('result-count').textContent =
-    filtered.length > MAX_RENDER ? ('상위 ' + MAX_RENDER + ' / 전체 ' + fmtInt(filtered.length) + '개') : (fmtInt(filtered.length) + '개');
+    sorted.length > PAGE_SIZE
+      ? (fmtInt(startIdx + 1) + '–' + fmtInt(startIdx + visible.length) + ' / 전체 ' + fmtInt(sorted.length) + '개')
+      : (fmtInt(sorted.length) + '개');
+  renderPagination(sorted.length);
 
   const tbody = document.getElementById('brand-tbody');
   if (!visible.length) {
@@ -1939,10 +2015,11 @@ async function updateBulkHelp() {
 }
 async function confirmBulkAssign() {
   const user = document.getElementById('bulk-user').value;
-  const n = parseInt(document.getElementById('bulk-count').value, 10);
+  const rawCount = String(document.getElementById('bulk-count').value || '').replace(/,/g, '').trim();
+  const n = Number(rawCount);
   const scope = document.getElementById('bulk-scope').value;
   if (!user) { toast('팀원을 선택하세요'); return; }
-  if (!n || n < 1) { toast('개수를 입력하세요'); return; }
+  if (!Number.isFinite(n) || n < 1) { toast('개수를 1 이상으로 입력하세요'); return; }
   const all = await dbGetAllBrands();
   let candidates;
   if (scope === 'unassigned_pending') candidates = all.filter(b => !b.assigned_to && b.review_status === 'pending');
@@ -2191,20 +2268,94 @@ async function downloadCSV() {
   else if (currentUser.role === 'manager') rows = brands.filter(b => b.review_status === 'approved');
   else { toast('다운로드 권한이 없습니다'); return; }
   if (!rows.length) { toast('다운로드할 데이터가 없습니다'); return; }
-  const cols = ['domain','review_status','decided_by_name','decided_at','decision_note','assigned_to',
-    'average_product_price_usd','categories','city','company_location','country_code','state',
-    'created','domain_url','emails','phones','plan','platform','platform_rank','rank',
-    'instagram','instagram_url','facebook','linkedin_account','linkedin_url',
-    'tiktok','tiktok_followers','youtube','youtube_followers','twitter','twitter_followers',
-    'pinterest','pinterest_followers'];
-  const esc = v => { if (v == null) return ''; let s = String(v); if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
+
+  // ---- Pipedrive Organization import format ----
+  // Pipedrive lets the user map columns during import, so we use clear, human-friendly headers.
+  // Multi-value fields (phones/emails) use semicolon separators per Pipedrive convention.
+  const cols = [
+    'Organization name',
+    'Website',
+    'Address',
+    'City',
+    'State',
+    'Country code',
+    'Phone',
+    'Email',
+    'Industry',
+    'Average price (USD)',
+    'Platform',
+    'Instagram',
+    'Instagram URL',
+    'LinkedIn',
+    'LinkedIn URL',
+    'TikTok',
+    'TikTok followers',
+    'YouTube',
+    'YouTube followers',
+    'X (Twitter)',
+    'X followers',
+    'Facebook',
+    'Pinterest',
+    'Pinterest followers',
+    'Decision status',
+    'Decided by',
+    'Decided at',
+    'Decision note',
+    'Notes',
+  ];
+  const splitJoin = (v, sep = ';') => {
+    if (!v) return '';
+    return String(v).split(':').filter(Boolean).join(sep);
+  };
+  const buildNotes = b => {
+    const lines = [];
+    if (b.categories) lines.push('Categories: ' + splitJoin(b.categories, ', '));
+    if (b.rank) lines.push('Rank: ' + b.rank);
+    if (b.platform_rank) lines.push('Platform rank: ' + b.platform_rank);
+    if (b.created) lines.push('Domain created: ' + b.created);
+    return lines.join(' | ');
+  };
+  const cellMap = b => ({
+    'Organization name': b.domain,
+    'Website': b.domain_url || ('https://' + (b.domain || '')),
+    'Address': b.company_location || '',
+    'City': b.city || '',
+    'State': b.state || '',
+    'Country code': b.country_code || '',
+    'Phone': splitJoin(b.phones),
+    'Email': splitJoin(b.emails),
+    'Industry': splitJoin(b.categories, ', '),
+    'Average price (USD)': b.average_product_price_usd || '',
+    'Platform': [b.plan, b.platform].filter(Boolean).join(' / '),
+    'Instagram': b.instagram || '',
+    'Instagram URL': b.instagram_url || '',
+    'LinkedIn': b.linkedin_account || '',
+    'LinkedIn URL': b.linkedin_url || '',
+    'TikTok': b.tiktok || '',
+    'TikTok followers': b.tiktok_followers || '',
+    'YouTube': b.youtube || '',
+    'YouTube followers': b.youtube_followers || '',
+    'X (Twitter)': b.twitter || '',
+    'X followers': b.twitter_followers || '',
+    'Facebook': b.facebook || '',
+    'Pinterest': b.pinterest || '',
+    'Pinterest followers': b.pinterest_followers || '',
+    'Decision status': b.review_status || '',
+    'Decided by': b.decided_by_name || '',
+    'Decided at': b.decided_at ? new Date(b.decided_at).toISOString() : '',
+    'Decision note': b.decision_note || '',
+    'Notes': buildNotes(b),
+  });
+  const esc = v => { if (v == null) return ''; let s = String(v); if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
   const lines = [cols.join(',')];
-  rows.forEach(r => { lines.push(cols.map(c => c === 'decided_at' ? (r[c] ? new Date(r[c]).toISOString() : '') : esc(r[c])).join(',')); });
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  rows.forEach(r => { const m = cellMap(r); lines.push(cols.map(c => esc(m[c])).join(',')); });
+  // Prepend BOM so Pipedrive / Excel detect UTF-8 correctly
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob); const a = document.createElement('a');
-  a.href = url; a.download = 'familink_brands_' + currentUser.role + '_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.href = url;
+  a.download = 'pipedrive_organizations_' + currentUser.role + '_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click(); URL.revokeObjectURL(url);
-  toast(fmtInt(rows.length) + '개 다운로드 완료');
+  toast(fmtInt(rows.length) + '개 Pipedrive CSV 다운로드 완료');
 }
 
 // =====================================================
@@ -2529,9 +2680,9 @@ function renderUserBreakdown(all, start, end) {
 // =====================================================
 // Wire-up
 // =====================================================
-['search','filter-status','filter-country','filter-assignee'].forEach(id => {
-  document.addEventListener('input', e => { if (e.target && e.target.id === id) renderBrands(); });
-  document.addEventListener('change', e => { if (e.target && e.target.id === id) renderBrands(); });
+['search','filter-status','filter-country','filter-assignee','filter-category','filter-domlen'].forEach(id => {
+  document.addEventListener('input', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
+  document.addEventListener('change', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
 });
 document.addEventListener('change', e => { if (e.target && e.target.id === 'bulk-scope') updateBulkHelp(); });
 document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
