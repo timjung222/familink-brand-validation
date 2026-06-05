@@ -538,9 +538,24 @@
   /* Pagination */
   .pagination {
     display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: center;
-    padding: 12px 14px; border-top: 1px solid var(--border); background: var(--panel-2);
+    padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--panel); margin-bottom: 10px;
     font-size: 12.5px;
   }
+
+  /* Select-all banner */
+  .select-banner {
+    display: none; align-items: center; gap: 10px; padding: 10px 14px;
+    background: var(--accent-soft); border: 1px solid var(--accent);
+    border-radius: var(--radius-lg); margin-bottom: 10px; font-size: 13px; color: var(--text);
+  }
+  .select-banner.show { display: flex; }
+  .select-banner button {
+    background: transparent; border: none; color: var(--accent); font-weight: 600;
+    font-size: 12.5px; cursor: pointer; padding: 4px 10px; border-radius: 4px;
+  }
+  .select-banner button:hover { background: rgba(94, 106, 210, 0.12); }
+  .select-banner b { color: var(--accent); font-weight: 700; }
   .pagination button {
     padding: 5px 11px; min-width: 32px; background: var(--panel); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text); font-weight: 500;
@@ -734,6 +749,13 @@
         <div class="spacer"></div>
         <span class="result-count" id="result-count"></span>
       </div>
+      <div id="select-banner" class="select-banner">
+        <span><b id="sb-page-count">0</b>개 선택됨 (현재 페이지 전체).</span>
+        <button onclick="selectAllFiltered()">필터된 전체 <b id="sb-total"></b>개 선택</button>
+        <span style="flex:1"></span>
+        <button onclick="clearSelection()">선택 해제</button>
+      </div>
+      <div id="pagination" class="pagination" style="display:none"></div>
       <div class="panel">
         <table class="brands">
           <thead><tr id="thead-row"></tr></thead>
@@ -743,7 +765,6 @@
           <div class="icon">∅</div>
           <div>표시할 브랜드가 없습니다.</div>
         </div>
-        <div id="pagination" class="pagination" style="display:none"></div>
       </div>
       <div id="bulk-bar" class="bulk-bar hidden">
         <span><span class="count" id="bulk-count">0</span>개 선택됨</span>
@@ -849,6 +870,11 @@
         <button class="btn btn-sm" onclick="resetFavicon()">기본값으로</button>
       </div>
     </div>
+    <div class="form-group" style="border-top: 1px solid var(--danger); padding-top: 16px; margin-top: 20px;">
+      <label style="color: var(--danger); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11.5px;">⚠ Danger Zone</label>
+      <button class="btn btn-sm btn-danger btn-block" onclick="openFormatModal()" style="margin-top: 8px;">전체 브랜드 데이터 포맷</button>
+      <div class="help" style="margin-top: 6px;">모든 브랜드 레코드가 영구 삭제됩니다. 사용자 계정/설정은 보존됩니다.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-sm" onclick="closeModal('modal-settings')">닫기</button>
     </div>
@@ -913,6 +939,25 @@
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-decision')">취소</button>
       <button class="btn btn-sm" id="decision-confirm">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- Format All Modal -->
+<div id="modal-format" class="modal-bg">
+  <div class="modal">
+    <h3 style="color: var(--danger)">⚠ 전체 브랜드 데이터 포맷</h3>
+    <div class="help" style="margin-bottom: 14px; line-height: 1.6;">
+      <b style="color: var(--text)">모든 브랜드 데이터가 영구 삭제됩니다.</b><br>
+      이 작업은 <b>복구 불가능</b>합니다. 사용자 계정과 환경설정은 보존됩니다.<br>
+      계속하려면 비밀번호와 확인 문구를 입력하세요.
+    </div>
+    <div class="form-group"><label>현재 비밀번호</label><input id="fmt-password" type="password" autocomplete="current-password" placeholder="비밀번호"></div>
+    <div class="form-group"><label>확인 — <code>DELETE ALL</code> 입력</label><input id="fmt-confirm" type="text" placeholder="DELETE ALL"></div>
+    <div id="fmt-result" class="upload-result"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-format')">취소</button>
+      <button class="btn btn-danger btn-sm" id="fmt-submit" onclick="confirmFormat()">전체 포맷 실행</button>
     </div>
   </div>
 </div>
@@ -1180,15 +1225,17 @@ function renderPagination(total) {
 
 // ----- Selection state -----
 let selectedBrandIds = new Set();
+let _filteredIds = []; // IDs after filter + sort (all pages combined)
+
 function toggleSelect(id) {
   if (selectedBrandIds.has(id)) selectedBrandIds.delete(id); else selectedBrandIds.add(id);
   updateBulkBar();
-  // Highlight the row without full re-render
   document.querySelectorAll('tr[data-bid="' + id + '"]').forEach(tr => tr.classList.toggle('selected', selectedBrandIds.has(id)));
   const cb = document.querySelector('input[data-bid="' + id + '"]'); if (cb) cb.checked = selectedBrandIds.has(id);
   syncSelectAll();
+  maybeShowSelectAllBanner();
 }
-function clearSelection() { selectedBrandIds.clear(); updateBulkBar(); renderBrands(); }
+function clearSelection() { selectedBrandIds.clear(); updateBulkBar(); maybeShowSelectAllBanner(); renderBrands(); }
 function selectAllVisible(on) {
   document.querySelectorAll('input[data-bid]').forEach(cb => {
     const id = cb.dataset.bid;
@@ -1197,6 +1244,14 @@ function selectAllVisible(on) {
     const tr = document.querySelector('tr[data-bid="' + id + '"]'); if (tr) tr.classList.toggle('selected', on);
   });
   updateBulkBar();
+  maybeShowSelectAllBanner();
+}
+function selectAllFiltered() {
+  _filteredIds.forEach(id => selectedBrandIds.add(id));
+  document.querySelectorAll('input[data-bid]').forEach(cb => { cb.checked = true; });
+  document.querySelectorAll('tr[data-bid]').forEach(tr => tr.classList.add('selected'));
+  updateBulkBar();
+  maybeShowSelectAllBanner();
 }
 function syncSelectAll() {
   const all = document.querySelectorAll('input[data-bid]');
@@ -1205,6 +1260,21 @@ function syncSelectAll() {
   if (head) {
     head.checked = all.length > 0 && checked.length === all.length;
     head.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+}
+function maybeShowSelectAllBanner() {
+  const banner = document.getElementById('select-banner');
+  if (!banner) return;
+  const onPage = document.querySelectorAll('input[data-bid]').length;
+  const checkedOnPage = document.querySelectorAll('input[data-bid]:checked').length;
+  const allOnPageSelected = onPage > 0 && checkedOnPage === onPage;
+  const moreExist = _filteredIds.length > onPage;
+  const notAllFilteredSelected = selectedBrandIds.size < _filteredIds.length;
+  const show = allOnPageSelected && moreExist && notAllFilteredSelected;
+  banner.classList.toggle('show', show);
+  if (show) {
+    document.getElementById('sb-page-count').textContent = onPage;
+    document.getElementById('sb-total').textContent = fmtInt(_filteredIds.length);
   }
 }
 function updateBulkBar() {
@@ -1282,6 +1352,52 @@ function readImageAsDataUrl(file) {
 function openSettings() {
   refreshSettingsPreviews();
   document.getElementById('modal-settings').classList.add('active');
+}
+
+function openFormatModal() {
+  if (!currentUser || currentUser.role !== 'admin') { toast('admin만 가능'); return; }
+  document.getElementById('fmt-password').value = '';
+  document.getElementById('fmt-confirm').value = '';
+  const res = document.getElementById('fmt-result'); res.className = 'upload-result'; res.textContent = '';
+  closeModal('modal-settings');
+  document.getElementById('modal-format').classList.add('active');
+}
+
+async function confirmFormat() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const pw = document.getElementById('fmt-password').value;
+  const conf = document.getElementById('fmt-confirm').value.trim();
+  const res = document.getElementById('fmt-result');
+  const btn = document.getElementById('fmt-submit');
+  if (conf !== 'DELETE ALL') { res.className = 'upload-result error show'; res.textContent = '확인 문구가 일치하지 않습니다. "DELETE ALL"을 정확히 입력하세요.'; return; }
+  if (!pw) { res.className = 'upload-result error show'; res.textContent = '비밀번호를 입력하세요.'; return; }
+  res.className = 'upload-result show'; res.textContent = '비밀번호 확인 중...';
+  btn.disabled = true; btn.textContent = '확인 중...';
+
+  // Verify password by re-authenticating (same user, replaces token)
+  const { error: authErr } = await sb.auth.signInWithPassword({ email: currentUser.email, password: pw });
+  if (authErr) {
+    res.className = 'upload-result error show'; res.textContent = '비밀번호 틀림: ' + authErr.message;
+    btn.disabled = false; btn.textContent = '전체 포맷 실행';
+    return;
+  }
+
+  res.textContent = '삭제 중... (전체 행 삭제는 시간이 걸릴 수 있음)';
+  // Delete all rows. Use a tautological filter (uploaded_at >= epoch).
+  const { error: delErr } = await sb.from('brands').delete().gte('uploaded_at', '1970-01-01T00:00:00Z');
+  if (delErr) {
+    res.className = 'upload-result error show'; res.textContent = '삭제 실패: ' + delErr.message;
+    btn.disabled = false; btn.textContent = '전체 포맷 실행';
+    return;
+  }
+
+  res.className = 'upload-result show'; res.textContent = '✓ 모든 브랜드 데이터가 삭제되었습니다.';
+  toast('전체 포맷 완료');
+  selectedBrandIds.clear();
+  currentPage = 1;
+  renderBrands();
+  btn.disabled = false; btn.textContent = '전체 포맷 실행';
+  setTimeout(() => closeModal('modal-format'), 1800);
 }
 
 // =====================================================
@@ -1783,6 +1899,7 @@ async function renderBrands() {
 
   const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
   const sorted = applySort(filtered, userMap);
+  _filteredIds = sorted.map(b => b.id);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   if (currentPage > totalPages) currentPage = totalPages;
@@ -1797,7 +1914,7 @@ async function renderBrands() {
   const tbody = document.getElementById('brand-tbody');
   if (!visible.length) {
     tbody.innerHTML = ''; document.getElementById('empty').classList.remove('hidden');
-    updateBulkBar(); syncSelectAll();
+    updateBulkBar(); syncSelectAll(); maybeShowSelectAllBanner();
     return;
   }
   document.getElementById('empty').classList.add('hidden');
@@ -1814,6 +1931,7 @@ async function renderBrands() {
 
   updateBulkBar();
   syncSelectAll();
+  maybeShowSelectAllBanner();
 }
 
 function renderCell(key, b, userMap, isEx) {
