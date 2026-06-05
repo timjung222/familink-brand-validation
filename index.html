@@ -1448,35 +1448,37 @@ function updateBulkBar() {
   document.getElementById('bulk-count').textContent = count;
 }
 // ----- Subdomain dedup helpers -----
-// Compound (public suffix-like) TLDs where the "real" registrable domain is 3 parts long.
-// Without this, "rapideye.uk.com" and "avon.uk.com" would all collapse to "uk.com".
+// Standard SLD prefixes that appear before country ccTLDs (catches com.bd, com.pt, co.uk, etc. without listing every country).
+const _SLD_PREFIXES = new Set([
+  'com','net','org','gov','edu','ac','co','or','ne','mil','sch',
+  'asn','id','ind','gen','firm','res','web','idv',
+  'iwi','kiwi','maori','geek','school','parliament','cri','health','govt',
+  'go','lg','ad','ed','gr',
+  'hs','ms','es','pe','re','sc',
+  'ltd','plc','me','mod','nhs','police',
+  'lib','art','tv','radio',
+]);
+
+// Compound TLDs that don't fit the heuristic (private SLDs, generic CentralNIC-style suffixes).
+// Without this list, brand subdomains on hosting platforms like myshopify.com / vercel.app
+// would be wrongly collapsed (different stores treated as same brand).
 const _COMPOUND_TLDS = new Set([
-  // UK
-  'co.uk','org.uk','ac.uk','gov.uk','ltd.uk','plc.uk','me.uk','net.uk','sch.uk','mod.uk','nhs.uk','parliament.uk','police.uk',
-  // US
-  'us.com','uk.com','eu.com','br.com','cn.com','de.com','jp.com','kr.com','no.com','ru.com','sa.com','se.com','uk.net','web.com','com.de',
-  // NZ
-  'co.nz','org.nz','ac.nz','net.nz','parliament.nz','geek.nz','gen.nz','govt.nz','iwi.nz','kiwi.nz','maori.nz','school.nz','mil.nz','cri.nz','health.nz',
-  // JP
-  'co.jp','ac.jp','ne.jp','or.jp','gr.jp','ed.jp','go.jp','lg.jp','ad.jp',
-  // AU
-  'com.au','org.au','net.au','gov.au','edu.au','asn.au','id.au',
-  // KR
-  'co.kr','or.kr','ne.kr','go.kr','mil.kr','ac.kr','hs.kr','ms.kr','es.kr','pe.kr','re.kr','sc.kr',
-  // CN
-  'com.cn','net.cn','org.cn','gov.cn','edu.cn','ac.cn',
-  // BR
-  'com.br','net.br','org.br','gov.br','edu.br',
-  // ZA
-  'co.za','org.za','net.za','gov.za','ac.za','mil.za','web.za',
-  // IN
-  'co.in','net.in','org.in','gen.in','firm.in','ind.in','ac.in','edu.in','res.in','gov.in',
-  // MX / TR / SG / TW / etc.
-  'com.mx','com.sg','com.tw','com.tr','com.ph','com.hk','com.my','com.ar','com.co','com.pe','com.uy','com.ve',
-  'co.id','co.il','co.th','co.ve','co.cr','co.ke','co.ma','co.ug','co.tz',
-  'org.tw','net.tw','idv.tw',
-  // EU others
-  'co.at','or.at','ac.at',
+  // Generic / CentralNIC-style — "<brand>.uk.com" looks like 2 parts but the registrable is 3.
+  'uk.com','eu.com','us.com','br.com','cn.com','de.com','jp.com','kr.com',
+  'no.com','ru.com','sa.com','se.com','uk.net','web.com','com.de','gb.com','gb.net',
+  // SaaS / hosting / e-commerce platforms — each subdomain is a separate tenant
+  'myshopify.com','shopify.com','shopifypreview.com',
+  'wixsite.com','editorx.io',
+  'squarespace.com',
+  'bigcommerce.com','mybigcommerce.com',
+  'wordpress.com','blogspot.com','tumblr.com','weebly.com','medium.com','substack.com',
+  'jimdofree.com','jimdo.com','webnode.com','strikingly.com','carrd.co',
+  'github.io','gitlab.io','netlify.app','vercel.app','pages.dev','workers.dev',
+  'herokuapp.com','azurewebsites.net','appspot.com','firebaseapp.com','web.app',
+  'glitch.me','onrender.com','fly.dev','railway.app',
+  'webflow.io','cargo.site','cargocollective.com',
+  // NZ private SLDs not always in NIC list (caught by heuristic too, but explicit for safety)
+  'kiwi.nz','geek.nz','school.nz','parliament.nz','iwi.nz','maori.nz','govt.nz',
 ]);
 
 function getRootDomain(d) {
@@ -1484,14 +1486,23 @@ function getRootDomain(d) {
   const dom = String(d).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
   const parts = dom.split('.').filter(Boolean);
   if (parts.length <= 2) return parts.join('.');
-  // Look at last 2 parts — is that a compound TLD?
+
+  // 1) Direct match against the compound-TLD list (catches uk.com, myshopify.com, kiwi.nz, etc.)
   const lastTwo = parts.slice(-2).join('.');
   if (_COMPOUND_TLDS.has(lastTwo)) {
-    // The registrable domain is last 3 parts (brand.compound.tld)
-    return parts.slice(-3).join('.');
+    return parts.length >= 3 ? parts.slice(-3).join('.') : lastTwo;
   }
-  // Default: registrable domain is last 2 parts
-  return parts.slice(-2).join('.');
+
+  // 2) Heuristic: 2-letter ccTLD + standard SLD prefix
+  //    Examples caught: com.bd, com.pt, com.cy, com.au, co.uk, co.kr, co.jp, com.br, com.mx ...
+  const last = parts[parts.length - 1];
+  const secondLast = parts[parts.length - 2];
+  if (last.length === 2 && _SLD_PREFIXES.has(secondLast)) {
+    return parts.length >= 3 ? parts.slice(-3).join('.') : lastTwo;
+  }
+
+  // 3) Default: registrable domain is last 2 parts
+  return lastTwo;
 }
 
 function getSubdomainPart(d) {
