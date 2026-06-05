@@ -404,6 +404,30 @@
   }
   .empty-state .icon { font-size: 32px; opacity: 0.4; margin-bottom: 8px; }
 
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite; display: inline-block;
+  }
+  .loading-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 80px 20px; gap: 14px; color: var(--text-dim); font-size: 13px;
+  }
+  .loading-state .sub { font-size: 11.5px; color: var(--text-faint); }
+
+  /* Refreshing badge: subtle inline spinner shown next to result-count while data is fetching */
+  .refreshing-badge {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim);
+    font-size: 11.5px; padding: 0 8px;
+  }
+  .refreshing-badge .mini-spinner {
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 1.5px solid var(--border); border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+
   /* Card block */
   .card-block {
     background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -781,6 +805,11 @@
           <div class="icon">∅</div>
           <div>표시할 브랜드가 없습니다.</div>
         </div>
+        <div id="loading-state" class="loading-state hidden">
+          <div class="spinner"></div>
+          <div><b id="loading-main">브랜드 데이터 로드 중...</b></div>
+          <div class="sub" id="loading-sub">전체 목록을 한 번에 불러옵니다.</div>
+        </div>
       </div>
       <div id="bulk-bar" class="bulk-bar hidden">
         <span><span class="count" id="bulk-count">0</span>개 선택됨</span>
@@ -1146,43 +1175,100 @@ async function loadProfiles() {
 }
 function getProfiles() { return _profilesCache; }
 
-// ----- Brand data layer (Supabase) -----
-async function dbGetAllBrands() {
-  // Fetch all brands. Supabase default limit is 1000; paginate if needed.
-  const all = [];
-  const PAGE = 1000;
-  let from = 0;
-  for (;;) {
-    const { data, error } = await sb.from('brands').select('*').range(from, from + PAGE - 1).order('uploaded_at', { ascending: false });
-    if (error) { console.warn('dbGetAllBrands error:', error); break; }
-    all.push(...(data || []));
-    if (!data || data.length < PAGE) break;
-    from += PAGE;
-  }
-  return all;
+// ----- Brand data layer (Supabase) with in-memory cache -----
+let _brandsCache = null;
+let _brandsCacheTime = 0;
+const BRANDS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+let _brandsFetchInFlight = null; // dedupe concurrent fetches
+
+function invalidateBrandsCache() { _brandsCache = null; _brandsCacheTime = 0; }
+function cacheUpdateBrand(b) {
+  if (!_brandsCache) return;
+  const idx = _brandsCache.findIndex(x => x.id === b.id);
+  if (idx >= 0) _brandsCache[idx] = { ..._brandsCache[idx], ...b };
+  else _brandsCache.unshift(b);
 }
+function cacheRemoveBrands(ids) {
+  if (!_brandsCache) return;
+  const s = new Set(ids);
+  _brandsCache = _brandsCache.filter(b => !s.has(b.id));
+}
+
+// Parallel paginated fetch — gets total count first, then all pages concurrently.
+async function _fetchAllBrandsParallel() {
+  const PAGE = 1000;
+  const { count, error: cErr } = await sb.from('brands').select('id', { count: 'exact', head: true });
+  if (cErr) { console.warn('count err:', cErr); return []; }
+  const total = count || 0;
+  if (total === 0) return [];
+  const numPages = Math.ceil(total / PAGE);
+  const out = new Array(numPages);
+  const CONCURRENCY = 4;
+  let cursor = 0;
+  async function worker() {
+    while (cursor < numPages) {
+      const i = cursor++;
+      const { data, error } = await sb.from('brands').select('*').range(i * PAGE, (i + 1) * PAGE - 1).order('uploaded_at', { ascending: false });
+      if (error) { console.warn('page ' + i + ' err:', error); out[i] = []; continue; }
+      out[i] = data || [];
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return out.flat();
+}
+
+async function dbGetAllBrands(opts) {
+  const force = opts && opts.force;
+  if (!force && _brandsCache && (Date.now() - _brandsCacheTime) < BRANDS_CACHE_TTL_MS) {
+    return _brandsCache;
+  }
+  if (_brandsFetchInFlight) return _brandsFetchInFlight;
+  _brandsFetchInFlight = (async () => {
+    try {
+      _brandsCache = await _fetchAllBrandsParallel();
+      _brandsCacheTime = Date.now();
+      return _brandsCache;
+    } finally {
+      _brandsFetchInFlight = null;
+    }
+  })();
+  return _brandsFetchInFlight;
+}
+
 async function dbGetBrand(id) {
+  // Try cache first
+  if (_brandsCache) {
+    const cached = _brandsCache.find(b => b.id === id);
+    if (cached) return cached;
+  }
   const { data, error } = await sb.from('brands').select('*').eq('id', id).single();
   if (error) return null;
   return data;
 }
+
 async function dbPutBrand(b) {
   const clean = filterBrandFields(b);
-  const { error } = await sb.from('brands').upsert(clean);
+  const { data, error } = await sb.from('brands').upsert(clean).select().single();
   if (error) { console.warn('dbPutBrand:', error); throw error; }
+  if (data) cacheUpdateBrand(data);
+  return data;
 }
+
 async function dbBulkPut(arr) {
   if (!arr.length) return;
   const CHUNK = 500;
   for (let i = 0; i < arr.length; i += CHUNK) {
     const slice = arr.slice(i, i + CHUNK).map(filterBrandFields);
-    const { error } = await sb.from('brands').upsert(slice);
+    const { data, error } = await sb.from('brands').upsert(slice).select();
     if (error) { console.warn('dbBulkPut chunk error:', error); throw error; }
+    (data || []).forEach(cacheUpdateBrand);
   }
 }
+
 async function dbDeleteBrand(id) {
   const { error } = await sb.from('brands').delete().eq('id', id);
   if (error) console.warn(error);
+  cacheRemoveBrands([id]);
 }
 
 // ----- Permission helpers -----
@@ -1461,6 +1547,7 @@ async function confirmDedupe() {
     btn.textContent = '삭제 중... ' + fmtInt(deleted) + ' / ' + fmtInt(toDelete.length);
     const { error } = await sb.from('brands').delete().in('id', slice);
     if (error) { toast('삭제 실패: ' + error.message); btn.disabled = false; btn.textContent = '선택 그룹 정리'; return; }
+    cacheRemoveBrands(slice);
     deleted += slice.length;
   }
   btn.disabled = false; btn.textContent = '선택 그룹 정리';
@@ -1483,6 +1570,7 @@ async function bulkDelete() {
     const slice = ids.slice(i, i + CHUNK);
     const { error } = await sb.from('brands').delete().in('id', slice);
     if (error) { toast('일부 삭제 실패: ' + error.message); break; }
+    cacheRemoveBrands(slice);
     deleted += slice.length;
   }
   selectedBrandIds.clear();
@@ -1579,6 +1667,8 @@ async function confirmFormat() {
 
   res.className = 'upload-result show'; res.textContent = '✓ 모든 브랜드 데이터가 삭제되었습니다.';
   toast('전체 포맷 완료');
+  _brandsCache = [];
+  _brandsCacheTime = Date.now();
   selectedBrandIds.clear();
   currentPage = 1;
   renderBrands();
@@ -2068,6 +2158,16 @@ let expanded = new Set();
 const COL_TO_SORT = { domain: 'domain', categories: 'categories', price: 'price', status: 'status', platform: 'platform', location: 'location', assignee: 'assignee', decider: 'decider' };
 
 async function renderBrands() {
+  // Show loading screen if no cache yet (first load)
+  const isFirstLoad = !_brandsCache;
+  const loadingEl = document.getElementById('loading-state');
+  const tableEl = document.querySelector('#view-brands table.brands');
+  if (isFirstLoad) {
+    loadingEl.classList.remove('hidden');
+    if (tableEl) tableEl.style.display = 'none';
+    document.getElementById('empty').classList.add('hidden');
+  }
+
   // header columns
   const cols = getOrderedColumns().filter(c => c.visible);
   const showSelect = canDelete(currentUser);
@@ -2084,6 +2184,10 @@ async function renderBrands() {
   document.getElementById('thead-row').innerHTML = selectHead + headerCells;
 
   const brands = await visibleBrands();
+
+  // Hide loading state, show table
+  loadingEl.classList.add('hidden');
+  if (tableEl) tableEl.style.display = '';
 
   const total = brands.length;
   const pending = brands.filter(b => b.review_status === 'pending').length;
@@ -2352,8 +2456,29 @@ function renderActions(b) {
 }
 
 function toggleExpand(id) {
-  if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
-  renderBrands();
+  const wasExpanded = expanded.has(id);
+  if (wasExpanded) expanded.delete(id); else expanded.add(id);
+
+  // Try DOM-only update for speed; fall back to full render if anything is unexpected.
+  const row = document.querySelector('tr[data-bid="' + id + '"]:not(.detail-row)');
+  if (!row || !_brandsCache) { renderBrands(); return; }
+  const brand = _brandsCache.find(b => b.id === id);
+  if (!brand) { renderBrands(); return; }
+
+  const btn = row.querySelector('.expand-btn');
+  const nextRow = row.nextElementSibling;
+
+  if (wasExpanded) {
+    if (nextRow && nextRow.classList.contains('detail-row')) nextRow.remove();
+    row.classList.remove('expanded');
+    if (btn) btn.textContent = '▸';
+  } else {
+    const cols = getOrderedColumns().filter(c => c.visible).length + (canDelete(currentUser) ? 1 : 0);
+    const html = '<tr class="detail-row" data-bid="' + id + '"><td colspan="' + cols + '">' + renderDetail(brand) + '</td></tr>';
+    row.classList.add('expanded');
+    row.insertAdjacentHTML('afterend', html);
+    if (btn) btn.textContent = '▾';
+  }
 }
 
 // =====================================================
