@@ -184,9 +184,10 @@
   }
   html[data-theme="dark"] .topbar { background: rgba(20,22,26,0.7); }
   .topbar-left { display: flex; align-items: center; gap: 22px; height: 100%; }
-  .logo-wrap { display: flex; align-items: center; height: 32px; max-width: 180px; }
-  .logo-wrap img { max-height: 28px; max-width: 180px; object-fit: contain; }
-  .logo-wrap svg { height: 24px; width: auto; }
+  .logo-wrap { display: flex; align-items: center; height: 40px; max-width: 220px; cursor: pointer; padding: 2px 4px; border-radius: 6px; transition: background .12s; }
+  .logo-wrap:hover { background: var(--panel-2); }
+  .logo-wrap img { max-height: 36px; max-width: 220px; object-fit: contain; }
+  .logo-wrap svg { height: 34px; width: auto; }
   .nav-divider { width: 1px; height: 18px; background: var(--border); }
   .tabs { display: flex; gap: 2px; height: 100%; align-items: center; }
   .tab {
@@ -413,9 +414,26 @@
   }
   .loading-state {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 80px 20px; gap: 14px; color: var(--text-dim); font-size: 13px;
+    padding: 70px 20px; gap: 12px; color: var(--text-dim); font-size: 13px;
   }
   .loading-state .sub { font-size: 11.5px; color: var(--text-faint); }
+  .load-progress { width: 320px; max-width: 90vw; margin-top: 6px; }
+  .load-progress-bar {
+    height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  #load-progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), #7984e8);
+    transition: width .3s ease;
+    border-radius: 999px;
+  }
+  .load-progress-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; color: var(--text-dim);
+    margin-top: 6px; font-feature-settings: 'tnum';
+  }
+  .load-progress-meta b { color: var(--accent); font-weight: 700; font-size: 13px; }
 
   /* Refreshing badge: subtle inline spinner shown next to result-count while data is fetching */
   .refreshing-badge {
@@ -732,7 +750,7 @@
 <div id="app" class="app">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo-wrap" id="logo-mount"></div>
+      <div class="logo-wrap" id="logo-mount" onclick="switchTab('brands')" title="브랜드 목록으로"></div>
       <div class="nav-divider"></div>
       <div class="tabs" id="tabs"></div>
     </div>
@@ -808,7 +826,10 @@
         <div id="loading-state" class="loading-state hidden">
           <div class="spinner"></div>
           <div><b id="loading-main">브랜드 데이터 로드 중...</b></div>
-          <div class="sub" id="loading-sub">전체 목록을 한 번에 불러옵니다.</div>
+          <div class="load-progress">
+            <div class="load-progress-bar"><div id="load-progress-fill"></div></div>
+            <div class="load-progress-meta"><b id="load-progress-pct">0%</b> <span id="load-progress-detail" class="sub"></span></div>
+          </div>
         </div>
       </div>
       <div id="bulk-bar" class="bulk-bar hidden">
@@ -884,7 +905,7 @@
       </div>
       <div class="panel">
         <table class="users">
-          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
+          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>정리</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
           <tbody id="users-tbody"></tbody>
         </table>
       </div>
@@ -1082,6 +1103,12 @@
         <span>브랜드 삭제 허용</span>
       </label>
     </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="inv-can-dedupe" type="checkbox"><span class="slider"></span></span>
+        <span>서브도메인 정리 허용</span>
+      </label>
+    </div>
     <div class="form-group" id="inv-statuses-wrap">
       <label>볼 수 있는 상태</label>
       <div class="status-chips" id="inv-statuses">
@@ -1124,6 +1151,12 @@
       <label class="perm-toggle">
         <span class="switch"><input id="u-can-delete" type="checkbox"><span class="slider"></span></span>
         <span>브랜드 삭제 허용</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="u-can-dedupe" type="checkbox"><span class="slider"></span></span>
+        <span>서브도메인 정리 허용</span>
       </label>
     </div>
     <div class="form-group" id="u-statuses-wrap">
@@ -1195,22 +1228,26 @@ function cacheRemoveBrands(ids) {
 }
 
 // Parallel paginated fetch — gets total count first, then all pages concurrently.
-async function _fetchAllBrandsParallel() {
+async function _fetchAllBrandsParallel(onProgress) {
   const PAGE = 1000;
   const { count, error: cErr } = await sb.from('brands').select('id', { count: 'exact', head: true });
   if (cErr) { console.warn('count err:', cErr); return []; }
   const total = count || 0;
+  if (onProgress) onProgress(0, total);
   if (total === 0) return [];
   const numPages = Math.ceil(total / PAGE);
   const out = new Array(numPages);
   const CONCURRENCY = 4;
   let cursor = 0;
+  let rowsFetched = 0;
   async function worker() {
     while (cursor < numPages) {
       const i = cursor++;
       const { data, error } = await sb.from('brands').select('*').range(i * PAGE, (i + 1) * PAGE - 1).order('uploaded_at', { ascending: false });
       if (error) { console.warn('page ' + i + ' err:', error); out[i] = []; continue; }
       out[i] = data || [];
+      rowsFetched += (data || []).length;
+      if (onProgress) onProgress(rowsFetched, total);
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
@@ -1219,13 +1256,14 @@ async function _fetchAllBrandsParallel() {
 
 async function dbGetAllBrands(opts) {
   const force = opts && opts.force;
+  const onProgress = opts && opts.onProgress;
   if (!force && _brandsCache && (Date.now() - _brandsCacheTime) < BRANDS_CACHE_TTL_MS) {
     return _brandsCache;
   }
   if (_brandsFetchInFlight) return _brandsFetchInFlight;
   _brandsFetchInFlight = (async () => {
     try {
-      _brandsCache = await _fetchAllBrandsParallel();
+      _brandsCache = await _fetchAllBrandsParallel(onProgress);
       _brandsCacheTime = Date.now();
       return _brandsCache;
     } finally {
@@ -1278,6 +1316,7 @@ function canSeeSocial(u) { return u && u.role !== 'appointment_setter'; }
 function canDecide(u) { return u && (u.role === 'admin' || u.role === 'manager' || u.role === 'team'); }
 function canAssign(u) { return u && (u.role === 'admin' || u.role === 'manager'); }
 function canDelete(u) { return u && (u.role === 'admin' || u.can_delete === true); }
+function canDedupe(u) { return u && (u.role === 'admin' || u.can_dedupe === true || u.can_delete === true); }
 function canInvite(u) { return u && u.role === 'admin'; }
 
 // ----- Sort state + helpers -----
@@ -1409,30 +1448,66 @@ function updateBulkBar() {
   document.getElementById('bulk-count').textContent = count;
 }
 // ----- Subdomain dedup helpers -----
-const _COMPOUND_SLDS = new Set(['co','com','org','net','gov','edu','ac','or','ne']);
+// Compound (public suffix-like) TLDs where the "real" registrable domain is 3 parts long.
+// Without this, "rapideye.uk.com" and "avon.uk.com" would all collapse to "uk.com".
+const _COMPOUND_TLDS = new Set([
+  // UK
+  'co.uk','org.uk','ac.uk','gov.uk','ltd.uk','plc.uk','me.uk','net.uk','sch.uk','mod.uk','nhs.uk','parliament.uk','police.uk',
+  // US
+  'us.com','uk.com','eu.com','br.com','cn.com','de.com','jp.com','kr.com','no.com','ru.com','sa.com','se.com','uk.net','web.com','com.de',
+  // NZ
+  'co.nz','org.nz','ac.nz','net.nz','parliament.nz','geek.nz','gen.nz','govt.nz','iwi.nz','kiwi.nz','maori.nz','school.nz','mil.nz','cri.nz','health.nz',
+  // JP
+  'co.jp','ac.jp','ne.jp','or.jp','gr.jp','ed.jp','go.jp','lg.jp','ad.jp',
+  // AU
+  'com.au','org.au','net.au','gov.au','edu.au','asn.au','id.au',
+  // KR
+  'co.kr','or.kr','ne.kr','go.kr','mil.kr','ac.kr','hs.kr','ms.kr','es.kr','pe.kr','re.kr','sc.kr',
+  // CN
+  'com.cn','net.cn','org.cn','gov.cn','edu.cn','ac.cn',
+  // BR
+  'com.br','net.br','org.br','gov.br','edu.br',
+  // ZA
+  'co.za','org.za','net.za','gov.za','ac.za','mil.za','web.za',
+  // IN
+  'co.in','net.in','org.in','gen.in','firm.in','ind.in','ac.in','edu.in','res.in','gov.in',
+  // MX / TR / SG / TW / etc.
+  'com.mx','com.sg','com.tw','com.tr','com.ph','com.hk','com.my','com.ar','com.co','com.pe','com.uy','com.ve',
+  'co.id','co.il','co.th','co.ve','co.cr','co.ke','co.ma','co.ug','co.tz',
+  'org.tw','net.tw','idv.tw',
+  // EU others
+  'co.at','or.at','ac.at',
+]);
+
 function getRootDomain(d) {
   if (!d) return '';
   const dom = String(d).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
   const parts = dom.split('.').filter(Boolean);
   if (parts.length <= 2) return parts.join('.');
-  if (_COMPOUND_SLDS.has(parts[parts.length - 2]) && parts.length >= 3) {
+  // Look at last 2 parts — is that a compound TLD?
+  const lastTwo = parts.slice(-2).join('.');
+  if (_COMPOUND_TLDS.has(lastTwo)) {
+    // The registrable domain is last 3 parts (brand.compound.tld)
     return parts.slice(-3).join('.');
   }
+  // Default: registrable domain is last 2 parts
   return parts.slice(-2).join('.');
 }
+
 function getSubdomainPart(d) {
   if (!d) return '';
   const dom = String(d).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
   const root = getRootDomain(dom);
   if (!root || dom === root) return '';
-  const pre = dom.slice(0, -root.length);
+  if (!dom.endsWith(root)) return '';
+  const pre = dom.slice(0, dom.length - root.length);
   return pre.replace(/\.$/, '');
 }
 
 let _dedupeGroups = []; // [{ root, brands: [...], keeperId }]
 
 async function openDedupe() {
-  if (!canDelete(currentUser)) { toast('삭제 권한이 필요합니다'); return; }
+  if (!canDedupe(currentUser)) { toast('서브도메인 정리 권한이 필요합니다'); return; }
   toast('중복 분석 중...');
   const all = await dbGetAllBrands();
   const groupsMap = {};
@@ -1463,6 +1538,8 @@ async function openDedupe() {
     });
     _dedupeGroups.push({ root, brands, keeperId: keeper.id, selected: true });
   });
+  // Sort groups by duplicate count desc (most duplicates first)
+  _dedupeGroups.sort((a, b) => b.brands.length - a.brands.length);
   if (!_dedupeGroups.length) { toast('서브도메인 중복이 발견되지 않았습니다'); return; }
   renderDedupeList();
   document.getElementById('modal-dedupe').classList.add('active');
@@ -1846,7 +1923,7 @@ function showApp() {
   document.getElementById('btn-download').classList.toggle('hidden', !isDownloader);
   document.getElementById('btn-bulk-assign').classList.toggle('hidden', !canAssign(currentUser));
   document.getElementById('btn-settings').classList.toggle('hidden', currentUser.role !== 'admin');
-  document.getElementById('btn-dedupe').classList.toggle('hidden', !canDelete(currentUser));
+  document.getElementById('btn-dedupe').classList.toggle('hidden', !canDedupe(currentUser));
 }
 
 // =====================================================
@@ -2166,6 +2243,25 @@ async function renderBrands() {
     loadingEl.classList.remove('hidden');
     if (tableEl) tableEl.style.display = 'none';
     document.getElementById('empty').classList.add('hidden');
+    // Reset progress UI
+    const fill = document.getElementById('load-progress-fill');
+    const pctEl = document.getElementById('load-progress-pct');
+    const detailEl = document.getElementById('load-progress-detail');
+    if (fill) fill.style.width = '0%';
+    if (pctEl) pctEl.textContent = '0%';
+    if (detailEl) detailEl.textContent = '';
+    // Trigger fetch with progress callback (cache miss will use it)
+    await dbGetAllBrands({
+      onProgress: (done, total) => {
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        const f = document.getElementById('load-progress-fill');
+        const p = document.getElementById('load-progress-pct');
+        const d = document.getElementById('load-progress-detail');
+        if (f) f.style.width = pct + '%';
+        if (p) p.textContent = pct + '%';
+        if (d) d.textContent = fmtInt(done) + ' / ' + fmtInt(total) + ' 개';
+      }
+    });
   }
 
   // header columns
@@ -2602,6 +2698,8 @@ function renderUsers() {
       : '<span class="muted">—</span>';
     const deleteCell = u.role === 'admin' ? '<span class="muted">항상</span>'
       : ('<label class="switch"><input type="checkbox" ' + (u.can_delete ? 'checked' : '') + ' onchange="toggleDelete(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
+    const dedupeCell = u.role === 'admin' ? '<span class="muted">항상</span>'
+      : ('<label class="switch"><input type="checkbox" ' + (u.can_dedupe ? 'checked' : '') + ' onchange="toggleDedupePerm(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
     let statusCell;
     if (u.role !== 'team' && u.role !== 'appointment_setter') statusCell = '<span class="muted">전체</span>';
     else {
@@ -2616,6 +2714,7 @@ function renderUsers() {
       '<td><span class="role-badge role-' + u.role + '">' + (u.role === 'appointment_setter' ? 'APPT SETTER' : u.role) + '</span></td>' +
       '<td>' + uploadCell + '</td>' +
       '<td>' + deleteCell + '</td>' +
+      '<td>' + dedupeCell + '</td>' +
       '<td>' + statusCell + '</td>' +
       '<td style="text-align:right">' +
         '<button class="btn btn-xs" onclick="editUser(\'' + escapeAttr(u.username) + '\')">편집</button> ' +
@@ -2632,6 +2731,17 @@ async function toggleDelete(username, val) {
   u.can_delete = val;
   if (currentUser.username === username) currentUser.can_delete = val;
   toast(val ? '삭제 권한 부여' : '삭제 권한 해제');
+}
+async function toggleDedupePerm(username, val) {
+  const u = getProfiles().find(x => x.username === username);
+  if (!u) return;
+  const { error } = await sb.from('profiles').update({ can_dedupe: val }).eq('id', u.id);
+  if (error) { toast('업데이트 실패: ' + error.message); return; }
+  u.can_dedupe = val;
+  if (currentUser.username === username) currentUser.can_dedupe = val;
+  toast(val ? '정리 권한 부여' : '정리 권한 해제');
+  // Refresh button visibility
+  document.getElementById('btn-dedupe').classList.toggle('hidden', !canDedupe(currentUser));
 }
 async function toggleUpload(username, val) {
   const u = getProfiles().find(x => x.username === username);
@@ -2680,6 +2790,7 @@ function openUserModal() {
   document.getElementById('inv-role').value = 'team';
   document.getElementById('inv-can-upload').checked = false;
   document.getElementById('inv-can-delete').checked = false;
+  document.getElementById('inv-can-dedupe').checked = false;
   document.querySelectorAll('#inv-statuses .status-chip').forEach(el => el.classList.add('active'));
   generateInvitePw();
   onInviteRoleChange();
@@ -2693,6 +2804,7 @@ async function submitInvite() {
   const role = document.getElementById('inv-role').value;
   const can_upload = document.getElementById('inv-can-upload').checked;
   const can_delete = document.getElementById('inv-can-delete').checked;
+  const can_dedupe = document.getElementById('inv-can-dedupe').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#inv-statuses .status-chip.active')).map(el => el.dataset.status);
   const res = document.getElementById('inv-result');
   if (!email || !password) { res.className = 'upload-result error show'; res.textContent = '이메일/비밀번호 필수'; return; }
@@ -2701,7 +2813,7 @@ async function submitInvite() {
   res.className = 'upload-result show'; res.textContent = '계정 생성 중...';
   try {
     const { data, error } = await sb.functions.invoke('invite-user', {
-      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, visible_statuses }
+      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, can_dedupe, visible_statuses }
     });
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);
@@ -2731,6 +2843,7 @@ function editUser(username) {
   document.getElementById('u-role').value = u.role;
   document.getElementById('u-can-upload').checked = !!u.can_upload;
   document.getElementById('u-can-delete').checked = !!u.can_delete;
+  document.getElementById('u-can-dedupe').checked = !!u.can_dedupe;
   const vs = new Set(u.visible_statuses || []);
   document.querySelectorAll('#u-statuses .status-chip').forEach(el => el.classList.toggle('active', vs.has(el.dataset.status)));
   onRoleChange();
@@ -2743,12 +2856,14 @@ async function saveUser() {
   const role = document.getElementById('u-role').value;
   const can_upload = document.getElementById('u-can-upload').checked;
   const can_delete = document.getElementById('u-can-delete').checked;
+  const can_dedupe = document.getElementById('u-can-dedupe').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#u-statuses .status-chip.active')).map(el => el.dataset.status);
   if (!name || !username) { alert('이름과 아이디를 입력해주세요'); return; }
   const update = {
     name, username, role,
     can_upload: role === 'admin' ? true : (role === 'manager' ? can_upload : false),
     can_delete,
+    can_dedupe,
     visible_statuses: (role === 'team' || role === 'appointment_setter') ? visible_statuses : []
   };
   const { error } = await sb.from('profiles').update(update).eq('id', editingUser);
