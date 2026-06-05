@@ -93,6 +93,12 @@
       radial-gradient(60vw 50vh at 110% 20%, var(--orb-2), transparent 65%),
       radial-gradient(50vw 50vh at 50% 110%, var(--orb-3), transparent 65%);
     filter: blur(20px);
+    animation: orbDrift 28s ease-in-out infinite alternate;
+  }
+  @keyframes orbDrift {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(30px, -20px) scale(1.04); }
+    100% { transform: translate(-25px, 25px) scale(0.97); }
   }
   body::after {
     content: '';
@@ -103,6 +109,33 @@
     background-size: 36px 36px;
     mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
     -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  }
+
+  /* Floating bg shapes (animated) */
+  .bg-shapes {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+  }
+  .bg-shapes .shape {
+    position: absolute;
+    will-change: transform, opacity;
+    animation: shapeFloat var(--dur, 28s) ease-in-out var(--d, 0s) infinite alternate;
+  }
+  .bg-shapes .shape.spin {
+    animation: shapeFloat var(--dur, 28s) ease-in-out var(--d, 0s) infinite alternate,
+               shapeRotate var(--rdur, 40s) linear var(--d, 0s) infinite;
+  }
+  @keyframes shapeFloat {
+    0%   { transform: translate(0, 0); }
+    100% { transform: translate(var(--dx, 50px), var(--dy, -40px)); }
+  }
+  @keyframes shapeRotate {
+    to { transform: rotate(360deg); }
+  }
+  /* Pulse for tiny dots */
+  .bg-shapes .pulse { animation: shapePulse var(--dur, 6s) ease-in-out var(--d, 0s) infinite; }
+  @keyframes shapePulse {
+    0%, 100% { opacity: var(--op-min, 0.25); transform: scale(0.9); }
+    50%      { opacity: var(--op-max, 0.55); transform: scale(1.2); }
   }
   .app, .login-wrap { position: relative; z-index: 1; }
 
@@ -714,6 +747,24 @@
 </style>
 </head>
 <body>
+
+<!-- Animated background shapes -->
+<div class="bg-shapes" aria-hidden="true">
+  <div class="shape spin" style="left:8%;top:18%;--dur:32s;--rdur:60s;--d:0s;--dx:80px;--dy:-50px;width:140px;height:140px;background:var(--accent);opacity:0.07;border-radius:50%"></div>
+  <div class="shape spin" style="left:78%;top:12%;--dur:38s;--rdur:80s;--d:-4s;--dx:-60px;--dy:70px;width:180px;height:180px;background:var(--danger);opacity:0.06;border-radius:36px;transform:rotate(20deg)"></div>
+  <div class="shape spin" style="left:18%;top:62%;--dur:26s;--rdur:55s;--d:-8s;--dx:50px;--dy:-30px;width:110px;height:110px;background:var(--success);opacity:0.07;border-radius:30px;transform:rotate(45deg)"></div>
+  <div class="shape spin" style="left:65%;top:70%;--dur:34s;--rdur:70s;--d:-12s;--dx:-70px;--dy:-40px;width:160px;height:160px;background:var(--warning);opacity:0.06;border-radius:50%"></div>
+  <div class="shape spin" style="left:88%;top:55%;--dur:30s;--rdur:50s;--d:-2s;--dx:-40px;--dy:30px;width:90px;height:90px;background:var(--accent);opacity:0.05;border-radius:24px;transform:rotate(15deg)"></div>
+  <div class="shape spin" style="left:4%;top:80%;--dur:36s;--rdur:65s;--d:-15s;--dx:40px;--dy:-20px;width:120px;height:120px;background:#7984e8;opacity:0.05;border-radius:50%"></div>
+
+  <!-- Small pulsing dots -->
+  <div class="shape pulse" style="left:25%;top:32%;--dur:5s;--d:0s;--op-min:0.2;--op-max:0.5;width:8px;height:8px;background:var(--accent);border-radius:50%"></div>
+  <div class="shape pulse" style="left:45%;top:18%;--dur:6.5s;--d:-1s;--op-min:0.15;--op-max:0.4;width:6px;height:6px;background:var(--success);border-radius:50%"></div>
+  <div class="shape pulse" style="left:72%;top:42%;--dur:5.5s;--d:-2s;--op-min:0.2;--op-max:0.5;width:10px;height:10px;background:var(--danger);border-radius:50%"></div>
+  <div class="shape pulse" style="left:55%;top:78%;--dur:7s;--d:-3s;--op-min:0.15;--op-max:0.45;width:7px;height:7px;background:var(--warning);border-radius:50%"></div>
+  <div class="shape pulse" style="left:15%;top:48%;--dur:4.5s;--d:-2.5s;--op-min:0.2;--op-max:0.5;width:5px;height:5px;background:var(--accent);border-radius:50%"></div>
+  <div class="shape pulse" style="left:90%;top:30%;--dur:6s;--d:-4s;--op-min:0.15;--op-max:0.4;width:9px;height:9px;background:#7984e8;border-radius:50%"></div>
+</div>
 
 <!-- LOGIN -->
 <div id="login" class="login-wrap">
@@ -2667,34 +2718,129 @@ function openDecision(id, status) {
 }
 async function confirmDecision() {
   const note = document.getElementById('decision-note').value.trim();
-  const b = await dbGetBrand(decisionTarget.id);
-  if (b) {
-    const wasApproval = decisionTarget.status === 'approved';
-    b.review_status = decisionTarget.status;
-    b.decided_by = currentUser.username;
-    b.decided_by_name = currentUser.name;
-    b.decided_at = Date.now();
-    b.decision_note = note || null;
-    await dbPutBrand(b);
-    if (wasApproval) { playApproveSound(); showApproveAnim(); }
-    toast(wasApproval ? '승인되었습니다' : '반려되었습니다');
+  const id = decisionTarget.id;
+  const status = decisionTarget.status;
+  const wasApproval = status === 'approved';
+
+  // ===== INSTANT FEEDBACK (before any server roundtrip) =====
+  closeModal('modal-decision');
+  if (wasApproval) { playApproveSound(); showApproveAnim(); }
+  toast(wasApproval ? '✓ 승인' : '✗ 반려');
+
+  // ===== Optimistic cache update + UI re-render =====
+  const nowIso = new Date().toISOString();
+  const update = {
+    review_status: status,
+    decided_by: currentUser.username,
+    decided_by_name: currentUser.name,
+    decided_at: nowIso,
+    decision_note: note || null,
+    pending_update: null,
+  };
+  if (_brandsCache) {
+    const idx = _brandsCache.findIndex(x => x.id === id);
+    if (idx >= 0) {
+      _brandsCache[idx] = Object.assign({}, _brandsCache[idx], update);
+    }
   }
-  closeModal('modal-decision'); renderBrands();
+  // Inline DOM update for the visible row (avoid full re-render flicker)
+  try { updateBrandRowInline(id); } catch(e) { renderBrands(); }
+
+  // ===== Background server save (fire-and-forget; revert on error) =====
+  sb.from('brands').update(update).eq('id', id).then(({ error }) => {
+    if (error) {
+      console.error('decision save failed:', error);
+      toast('서버 저장 실패: ' + error.message);
+      invalidateBrandsCache();
+      renderBrands();
+    }
+  });
 }
 
 async function undoDecision(id) {
   if (!confirm('결정을 취소하시겠습니까? 상태가 대기중으로 돌아갑니다.')) return;
-  const b = await dbGetBrand(id);
+  const b = _brandsCache ? _brandsCache.find(x => x.id === id) : await dbGetBrand(id);
   if (!b) return;
   if (currentUser.role === 'team' && b.decided_by !== currentUser.username) {
     toast('본인이 결정한 항목만 취소할 수 있습니다'); return;
   }
-  b.review_status = 'pending';
-  b.decided_by = null; b.decided_by_name = null;
-  b.decided_at = null; b.decision_note = null;
-  await dbPutBrand(b);
+  // Optimistic
   toast('결정이 취소되었습니다');
-  renderBrands();
+  const update = { review_status: 'pending', decided_by: null, decided_by_name: null, decided_at: null, decision_note: null };
+  if (_brandsCache) {
+    const idx = _brandsCache.findIndex(x => x.id === id);
+    if (idx >= 0) _brandsCache[idx] = Object.assign({}, _brandsCache[idx], update);
+  }
+  try { updateBrandRowInline(id); } catch(e) { renderBrands(); }
+  sb.from('brands').update(update).eq('id', id).then(({ error }) => {
+    if (error) {
+      console.error('undo failed:', error);
+      toast('서버 저장 실패: ' + error.message);
+      invalidateBrandsCache();
+      renderBrands();
+    }
+  });
+}
+
+// Replace one brand row in-place without re-rendering the whole table.
+function updateBrandRowInline(id) {
+  if (!_brandsCache) return;
+  const b = _brandsCache.find(x => x.id === id);
+  if (!b) return;
+  const row = document.querySelector('tr[data-bid="' + id + '"]:not(.detail-row)');
+  if (!row) return;
+  const cols = getOrderedColumns().filter(c => c.visible);
+  const showSelect = canDelete(currentUser);
+  const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
+  const isEx = expanded.has(id);
+  const isSel = selectedBrandIds.has(id);
+  const selectCell = showSelect ? '<td class="col-select"><input type="checkbox" data-bid="' + id + '" ' + (isSel ? 'checked' : '') + ' onchange="toggleSelect(\'' + id + '\')"></td>' : '';
+  const cells = cols.map(c => renderCell(c.key, b, userMap, isEx)).join('');
+  row.innerHTML = selectCell + cells;
+  row.className = (isEx ? 'expanded ' : '') + (isSel ? 'selected' : '');
+  // Also update detail row if expanded
+  const next = row.nextElementSibling;
+  if (isEx && next && next.classList.contains('detail-row')) {
+    const colSpan = cols.length + (showSelect ? 1 : 0);
+    next.innerHTML = '<td colspan="' + colSpan + '">' + renderDetail(b) + '</td>';
+  }
+  // Refresh stats counts
+  refreshStatsFromCache();
+}
+
+// Recompute and refresh the top stat cards from cache (used after optimistic update).
+function refreshStatsFromCache() {
+  if (!_brandsCache) return;
+  // Apply role-based visibility
+  let brands;
+  if (currentUser.role === 'admin' || currentUser.role === 'manager') brands = _brandsCache;
+  else if (currentUser.role === 'appointment_setter') {
+    const vs = currentUser.visible_statuses || ['approved'];
+    brands = _brandsCache.filter(b => vs.length === 0 || vs.includes(b.review_status));
+  } else {
+    const vs = currentUser.visible_statuses || [];
+    brands = _brandsCache.filter(b => {
+      if (b.assigned_to !== currentUser.username) return false;
+      if (vs.length && !vs.includes(b.review_status)) return false;
+      return true;
+    });
+  }
+  const total = brands.length;
+  const pending = brands.filter(b => b.review_status === 'pending').length;
+  const approved = brands.filter(b => b.review_status === 'approved').length;
+  const rejected = brands.filter(b => b.review_status === 'rejected').length;
+  const dupes = brands.filter(b => b.pending_update).length;
+  let statsHtml =
+    '<div class="stat-card"><div class="label">전체</div><div class="value">' + fmtInt(total) + '</div></div>' +
+    '<div class="stat-card pending"><div class="label">대기중</div><div class="value">' + fmtInt(pending) + '</div></div>' +
+    '<div class="stat-card approved"><div class="label">승인</div><div class="value">' + fmtInt(approved) + '</div></div>' +
+    '<div class="stat-card rejected"><div class="label">반려</div><div class="value">' + fmtInt(rejected) + '</div></div>';
+  if (dupes) statsHtml += '<div class="stat-card"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(dupes) + '</div></div>';
+  if (currentUser.role === 'team') {
+    const me = brands.filter(b => b.assigned_to === currentUser.username).length;
+    statsHtml += '<div class="stat-card"><div class="label">내 할당</div><div class="value">' + fmtInt(me) + '</div></div>';
+  }
+  const el = document.getElementById('stats'); if (el) el.innerHTML = statsHtml;
 }
 
 // =====================================================
@@ -3191,14 +3337,25 @@ async function renderDashboard() {
   const periodLabel = { daily: '14일', weekly: '12주', monthly: '12개월' }[dashPeriod];
   const rate = (tot.a + tot.r) > 0 ? Math.round(tot.a * 100 / (tot.a + tot.r)) : 0;
 
-  document.getElementById('dash-stats').innerHTML =
-    '<div class="stat-card"><div class="label">오늘 업로드</div><div class="value" style="color:var(--accent)">' + fmtInt(todayBucket.uploaded) + '</div></div>' +
-    '<div class="stat-card"><div class="label">오늘 승인</div><div class="value" style="color:var(--success)">' + fmtInt(todayBucket.approved) + '</div></div>' +
-    '<div class="stat-card"><div class="label">오늘 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(todayBucket.rejected) + '</div></div>' +
-    '<div class="stat-card"><div class="label">최근 ' + periodLabel + ' 업로드</div><div class="value" style="color:var(--accent)">' + fmtInt(tot.u) + '</div></div>' +
-    '<div class="stat-card"><div class="label">최근 ' + periodLabel + ' 승인</div><div class="value" style="color:var(--success)">' + fmtInt(tot.a) + '</div></div>' +
-    '<div class="stat-card"><div class="label">최근 ' + periodLabel + ' 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(tot.r) + '</div></div>' +
-    '<div class="stat-card"><div class="label">승인 비율</div><div class="value">' + rate + '%</div></div>';
+  const isTeam = currentUser.role === 'team';
+  const meWord = isTeam ? '내 ' : '';
+  let statsHtml = '';
+  // Show upload stats only if relevant (admin/manager, or filtering by a user who can upload)
+  if (!isTeam) {
+    statsHtml += '<div class="stat-card"><div class="label">오늘 업로드</div><div class="value" style="color:var(--accent)">' + fmtInt(todayBucket.uploaded) + '</div></div>';
+  }
+  statsHtml +=
+    '<div class="stat-card"><div class="label">' + meWord + '오늘 승인</div><div class="value" style="color:var(--success)">' + fmtInt(todayBucket.approved) + '</div></div>' +
+    '<div class="stat-card"><div class="label">' + meWord + '오늘 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(todayBucket.rejected) + '</div></div>';
+  if (!isTeam) {
+    statsHtml += '<div class="stat-card"><div class="label">최근 ' + periodLabel + ' 업로드</div><div class="value" style="color:var(--accent)">' + fmtInt(tot.u) + '</div></div>';
+  }
+  statsHtml +=
+    '<div class="stat-card"><div class="label">' + meWord + '최근 ' + periodLabel + ' 승인</div><div class="value" style="color:var(--success)">' + fmtInt(tot.a) + '</div></div>' +
+    '<div class="stat-card"><div class="label">' + meWord + '최근 ' + periodLabel + ' 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(tot.r) + '</div></div>' +
+    '<div class="stat-card"><div class="label">' + meWord + '총 결정</div><div class="value">' + fmtInt(tot.a + tot.r) + '</div></div>' +
+    '<div class="stat-card"><div class="label">' + meWord + '승인 비율</div><div class="value">' + rate + '%</div></div>';
+  document.getElementById('dash-stats').innerHTML = statsHtml;
 
   const who = dashUser ? (getProfiles().find(u => u.username === dashUser) || {}).name : null;
   document.getElementById('dash-subtitle').textContent =
