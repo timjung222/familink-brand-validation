@@ -1648,7 +1648,15 @@ function filterBrandFields(o) {
   return out;
 }
 
+function setUploadProgress(text, isError) {
+  const el = document.getElementById('upload-result');
+  if (!el) return;
+  el.className = 'upload-result show' + (isError ? ' error' : '');
+  el.innerHTML = text;
+}
+
 async function importBrands(rawRows) {
+  setUploadProgress('기존 데이터 비교 중...');
   const existing = await dbGetAllBrands();
   const byDomain = {}; existing.forEach(b => { byDomain[(b.domain || '').toLowerCase()] = b; });
   const toAdd = [];
@@ -1678,16 +1686,37 @@ async function importBrands(rawRows) {
       pending_update: null,
     })));
   });
-  if (toAdd.length) {
-    const { error } = await sb.from('brands').insert(toAdd);
-    if (error) { console.warn('insert error:', error); throw new Error(error.message); }
+
+  // Insert in chunks to avoid Postgres statement_timeout
+  const INSERT_CHUNK = 200;
+  let inserted = 0;
+  for (let i = 0; i < toAdd.length; i += INSERT_CHUNK) {
+    const slice = toAdd.slice(i, i + INSERT_CHUNK);
+    setUploadProgress('신규 추가 중... <b>' + fmtInt(inserted) + ' / ' + fmtInt(toAdd.length) + '</b>');
+    const { error } = await sb.from('brands').insert(slice);
+    if (error) { setUploadProgress('추가 실패: ' + escapeHtml(error.message), true); throw new Error(error.message); }
+    inserted += slice.length;
   }
+
+  // Update pending_update in parallel batches (concurrency 5)
   if (toUpdate.length) {
-    // Update pending_update one by one (small N typically)
-    for (const u of toUpdate) {
-      await sb.from('brands').update({ pending_update: u.pending_update }).eq('id', u.id);
+    let done = 0;
+    const queue = toUpdate.slice();
+    const concurrency = 5;
+    async function worker() {
+      while (queue.length) {
+        const u = queue.shift();
+        const { error } = await sb.from('brands').update({ pending_update: u.pending_update }).eq('id', u.id);
+        if (error) console.warn('pending update err:', error);
+        done++;
+        if (done % 20 === 0 || done === toUpdate.length) {
+          setUploadProgress('중복 변경사항 표시 중... <b>' + fmtInt(done) + ' / ' + fmtInt(toUpdate.length) + '</b>');
+        }
+      }
     }
+    await Promise.all(Array.from({ length: concurrency }, worker));
   }
+
   return { added: toAdd.length, dupes: dupesList, dupesNoChanges, skipped };
 }
 
