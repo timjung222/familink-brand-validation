@@ -100,32 +100,53 @@
     50%  { transform: translate(30px, -20px) scale(1.04); }
     100% { transform: translate(-25px, 25px) scale(0.97); }
   }
-  body::after {
-    content: '';
-    position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background-image:
-      linear-gradient(var(--bg-grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
-    background-size: 36px 36px;
-    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-  }
+  /* (grid removed — replaced by floating shapes only) */
 
-  /* Refined animated bg — small geometric shapes drifting subtly */
+  /* Vibrant animated bg — more shapes, richer colors, varied motion */
   .bg-shapes {
     position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
   }
   .bg-shapes > * {
     position: absolute; left: var(--x); top: var(--y);
-    opacity: var(--op, 0.12);
+    opacity: var(--op, 0.15);
     will-change: transform, opacity;
-    animation: bgDrift var(--dur, 38s) ease-in-out var(--d, 0s) infinite alternate;
+    animation: bgDrift var(--dur, 28s) ease-in-out var(--d, 0s) infinite alternate;
   }
   @keyframes bgDrift {
-    0%   { transform: translate(0, 0) rotate(0deg); }
-    50%  { transform: translate(var(--dx, 30px), var(--dy, -20px)) rotate(var(--r1, 20deg)); }
-    100% { transform: translate(var(--dx2, -25px), var(--dy2, 25px)) rotate(var(--r2, -15deg)); }
+    0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+    33%  { transform: translate(var(--dx, 60px), var(--dy, -40px)) rotate(var(--r1, 90deg)) scale(1.05); }
+    66%  { transform: translate(var(--dx2, -50px), var(--dy2, 50px)) rotate(var(--r2, -60deg)) scale(0.95); }
+    100% { transform: translate(var(--dx3, 30px), var(--dy3, -10px)) rotate(var(--r3, 180deg)) scale(1); }
   }
+  /* Triangle */
+  .bg-tri {
+    width: 0; height: 0;
+    border-left: var(--sz, 12px) solid transparent;
+    border-right: var(--sz, 12px) solid transparent;
+    border-bottom: calc(var(--sz, 12px) * 1.7) solid var(--accent);
+  }
+  .bg-tri.danger  { border-bottom-color: var(--danger); }
+  .bg-tri.success { border-bottom-color: var(--success); }
+  .bg-tri.warning { border-bottom-color: var(--warning); }
+  /* Hexagon (using clip-path) */
+  .bg-hex {
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  }
+  .bg-hex.danger  { background: var(--danger); }
+  .bg-hex.success { background: var(--success); }
+  /* Star */
+  .bg-star {
+    background: var(--warning);
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  }
+  /* Gradient pill */
+  .bg-pill {
+    background: linear-gradient(135deg, var(--accent), #d946ef);
+    border-radius: 999px;
+  }
+  .bg-pill.alt { background: linear-gradient(135deg, var(--danger), var(--warning)); }
+  .bg-pill.cool { background: linear-gradient(135deg, #06b6d4, var(--accent)); }
   /* Ring (outlined circle) */
   .bg-ring {
     border: 1.5px solid var(--accent);
@@ -787,50 +808,78 @@
 </head>
 <body>
 
-<!-- Refined animated background — small geometric accents, mostly outlined -->
+<!-- Vibrant animated background — many colorful shapes drifting -->
 <div class="bg-shapes" aria-hidden="true">
   <!-- Outlined rings -->
-  <div class="bg-ring"         style="--x:8%;--y:14%;width:38px;height:38px;--dur:34s;--d:0s;--dx:40px;--dy:-30px;--dx2:-20px;--dy2:25px;--r1:90deg;--r2:-45deg;--op:0.18"></div>
-  <div class="bg-ring danger"  style="--x:72%;--y:10%;width:24px;height:24px;--dur:30s;--d:-3s;--dx:-30px;--dy:40px;--dx2:25px;--dy2:-15px;--op:0.16"></div>
-  <div class="bg-ring"         style="--x:18%;--y:68%;width:50px;height:50px;--dur:42s;--d:-8s;--dx:30px;--dy:-25px;--dx2:-15px;--dy2:30px;--r1:60deg;--op:0.13"></div>
-  <div class="bg-ring success" style="--x:62%;--y:78%;width:30px;height:30px;--dur:36s;--d:-12s;--dx:-25px;--dy:-20px;--op:0.15"></div>
-  <div class="bg-ring"         style="--x:88%;--y:50%;width:42px;height:42px;--dur:38s;--d:-5s;--dx:-20px;--dy:30px;--op:0.14"></div>
-  <div class="bg-ring danger"  style="--x:3%;--y:82%;width:18px;height:18px;--dur:28s;--d:-7s;--dx:35px;--dy:-15px;--op:0.18"></div>
-  <div class="bg-ring"         style="--x:36%;--y:22%;width:14px;height:14px;--dur:26s;--d:-10s;--dx:25px;--dy:25px;--op:0.20"></div>
-  <div class="bg-ring success" style="--x:48%;--y:56%;width:22px;height:22px;--dur:32s;--d:-6s;--dx:-30px;--dy:-20px;--op:0.14"></div>
+  <div class="bg-ring"         style="--x:6%;--y:10%;width:46px;height:46px;--dur:32s;--d:0s;--dx:80px;--dy:-50px;--dx2:-40px;--dy2:60px;--dx3:30px;--dy3:-20px;--r1:120deg;--r2:-80deg;--r3:200deg;--op:0.32"></div>
+  <div class="bg-ring danger"  style="--x:74%;--y:8%;width:34px;height:34px;--dur:28s;--d:-3s;--dx:-60px;--dy:70px;--dx2:50px;--dy2:-30px;--op:0.30"></div>
+  <div class="bg-ring success" style="--x:18%;--y:64%;width:60px;height:60px;--dur:38s;--d:-8s;--dx:60px;--dy:-50px;--op:0.28"></div>
+  <div class="bg-ring warning" style="--x:62%;--y:76%;width:42px;height:42px;--dur:34s;--d:-12s;--dx:-50px;--dy:-30px;--op:0.30"></div>
+  <div class="bg-ring"         style="--x:88%;--y:46%;width:52px;height:52px;--dur:36s;--d:-5s;--dx:-40px;--dy:50px;--op:0.28"></div>
+  <div class="bg-ring danger"  style="--x:3%;--y:80%;width:26px;height:26px;--dur:26s;--d:-7s;--dx:60px;--dy:-30px;--op:0.32"></div>
+  <div class="bg-ring success" style="--x:48%;--y:14%;width:22px;height:22px;--dur:24s;--d:-10s;--dx:50px;--dy:50px;--op:0.34"></div>
+  <div class="bg-ring"         style="--x:38%;--y:58%;width:30px;height:30px;--dur:30s;--d:-6s;--dx:-50px;--dy:-40px;--op:0.28"></div>
 
-  <!-- Rotated squares (diamonds) -->
-  <div class="bg-sq" style="--x:28%;--y:8%;width:14px;height:14px;--dur:40s;--d:-2s;--dx:30px;--dy:30px;--r1:90deg;--r2:180deg;--op:0.16"></div>
-  <div class="bg-sq" style="--x:82%;--y:32%;width:10px;height:10px;--dur:34s;--d:-9s;--dx:-20px;--dy:25px;--r1:135deg;--op:0.18"></div>
-  <div class="bg-sq" style="--x:42%;--y:72%;width:12px;height:12px;--dur:38s;--d:-11s;--dx:25px;--dy:-30px;--op:0.15"></div>
-  <div class="bg-sq" style="--x:67%;--y:54%;width:8px;height:8px;--dur:30s;--d:-4s;--dx:-15px;--dy:-20px;--op:0.20"></div>
+  <!-- Diamonds (rotated squares) -->
+  <div class="bg-sq" style="--x:28%;--y:6%;width:18px;height:18px;background:transparent;border:1.5px solid var(--accent);--dur:36s;--d:-2s;--dx:60px;--dy:50px;--r1:135deg;--r2:225deg;--op:0.30"></div>
+  <div class="bg-sq" style="--x:82%;--y:28%;width:14px;height:14px;background:transparent;border:1.5px solid var(--danger);--dur:30s;--d:-9s;--dx:-40px;--dy:40px;--op:0.30"></div>
+  <div class="bg-sq" style="--x:46%;--y:74%;width:16px;height:16px;background:transparent;border:1.5px solid var(--success);--dur:34s;--d:-11s;--dx:50px;--dy:-50px;--op:0.28"></div>
+  <div class="bg-sq" style="--x:67%;--y:50%;width:12px;height:12px;background:transparent;border:1.5px solid var(--warning);--dur:28s;--d:-4s;--dx:-30px;--dy:-30px;--op:0.32"></div>
+
+  <!-- Triangles -->
+  <div class="bg-tri"         style="--x:23%;--y:32%;--sz:10px;--dur:30s;--d:-1s;--dx:50px;--dy:30px;--r1:120deg;--r2:240deg;--op:0.28"></div>
+  <div class="bg-tri danger"  style="--x:79%;--y:62%;--sz:14px;--dur:34s;--d:-6s;--dx:-40px;--dy:-30px;--op:0.30"></div>
+  <div class="bg-tri success" style="--x:53%;--y:88%;--sz:12px;--dur:32s;--d:-9s;--dx:30px;--dy:-40px;--op:0.28"></div>
+  <div class="bg-tri warning" style="--x:9%;--y:50%;--sz:9px;--dur:28s;--d:-4s;--dx:60px;--dy:20px;--op:0.30"></div>
+  <div class="bg-tri"         style="--x:91%;--y:36%;--sz:11px;--dur:36s;--d:-13s;--dx:-50px;--dy:50px;--op:0.28"></div>
+
+  <!-- Hexagons -->
+  <div class="bg-hex success" style="--x:32%;--y:18%;width:16px;height:18px;--dur:32s;--d:-5s;--dx:60px;--dy:-30px;--r1:120deg;--op:0.22"></div>
+  <div class="bg-hex"         style="--x:71%;--y:18%;width:14px;height:16px;--dur:30s;--d:-2s;--dx:-40px;--dy:50px;--op:0.22"></div>
+  <div class="bg-hex danger"  style="--x:13%;--y:78%;width:18px;height:20px;--dur:34s;--d:-8s;--dx:50px;--dy:-40px;--op:0.22"></div>
+
+  <!-- Stars -->
+  <div class="bg-star" style="--x:42%;--y:42%;width:16px;height:16px;--dur:36s;--d:-3s;--dx:60px;--dy:-50px;--r1:180deg;--r2:360deg;--r3:540deg;--op:0.30"></div>
+  <div class="bg-star" style="--x:84%;--y:68%;width:14px;height:14px;--dur:30s;--d:-11s;--dx:-50px;--dy:40px;--op:0.28"></div>
+  <div class="bg-star" style="--x:24%;--y:88%;width:12px;height:12px;--dur:28s;--d:-7s;--dx:40px;--dy:-30px;--op:0.28"></div>
 
   <!-- Plus signs -->
-  <div class="bg-plus"        style="--x:14%;--y:36%;--dur:32s;--d:-1s;--dx:30px;--dy:20px;--op:0.20"></div>
-  <div class="bg-plus danger" style="--x:58%;--y:18%;--dur:34s;--d:-13s;--dx:-25px;--dy:30px;--op:0.18"></div>
-  <div class="bg-plus"        style="--x:80%;--y:72%;--dur:36s;--d:-6s;--dx:20px;--dy:-25px;--op:0.18"></div>
-  <div class="bg-plus"        style="--x:31%;--y:84%;--dur:28s;--d:-14s;--dx:-20px;--dy:20px;--op:0.16"></div>
+  <div class="bg-plus"        style="--x:15%;--y:34%;--dur:30s;--d:-1s;--dx:50px;--dy:30px;--op:0.34"></div>
+  <div class="bg-plus danger" style="--x:58%;--y:18%;--dur:32s;--d:-13s;--dx:-40px;--dy:50px;--op:0.32"></div>
+  <div class="bg-plus"        style="--x:80%;--y:72%;--dur:34s;--d:-6s;--dx:40px;--dy:-40px;--op:0.32"></div>
+  <div class="bg-plus"        style="--x:31%;--y:82%;--dur:28s;--d:-14s;--dx:-40px;--dy:30px;--op:0.30"></div>
 
-  <!-- Tiny pulsing dots -->
-  <div class="bg-dot"          style="--x:22%;--y:48%;width:4px;height:4px;--dur:4.5s;--d:0s;--op:0.55"></div>
-  <div class="bg-dot success"  style="--x:50%;--y:32%;width:3px;height:3px;--dur:5.5s;--d:-1s;--op:0.5"></div>
-  <div class="bg-dot danger"   style="--x:76%;--y:62%;width:5px;height:5px;--dur:6s;--d:-2s;--op:0.55"></div>
-  <div class="bg-dot warning"  style="--x:11%;--y:60%;width:3px;height:3px;--dur:4s;--d:-3s;--op:0.5"></div>
-  <div class="bg-dot"          style="--x:55%;--y:66%;width:4px;height:4px;--dur:5s;--d:-2.5s;--op:0.5"></div>
-  <div class="bg-dot success"  style="--x:38%;--y:40%;width:3px;height:3px;--dur:6.5s;--d:-1.5s;--op:0.5"></div>
-  <div class="bg-dot"          style="--x:69%;--y:88%;width:4px;height:4px;--dur:5.2s;--d:-3.5s;--op:0.55"></div>
-  <div class="bg-dot danger"   style="--x:92%;--y:24%;width:3px;height:3px;--dur:4.8s;--d:-0.5s;--op:0.5"></div>
-  <div class="bg-dot"          style="--x:6%;--y:24%;width:5px;height:5px;--dur:5.8s;--d:-2.8s;--op:0.55"></div>
-  <div class="bg-dot success"  style="--x:84%;--y:84%;width:3px;height:3px;--dur:4.3s;--d:-1.2s;--op:0.5"></div>
+  <!-- Gradient pills -->
+  <div class="bg-pill"      style="--x:34%;--y:48%;width:38px;height:8px;--dur:36s;--d:-3s;--dx:60px;--dy:-30px;--r1:30deg;--r2:-15deg;--op:0.30"></div>
+  <div class="bg-pill alt"  style="--x:75%;--y:40%;width:42px;height:8px;--dur:32s;--d:-7s;--dx:-50px;--dy:50px;--op:0.28"></div>
+  <div class="bg-pill cool" style="--x:11%;--y:24%;width:34px;height:8px;--dur:30s;--d:-11s;--dx:50px;--dy:30px;--op:0.30"></div>
+  <div class="bg-pill"      style="--x:62%;--y:88%;width:38px;height:8px;--dur:34s;--d:-2s;--dx:-40px;--dy:-50px;--op:0.28"></div>
 
-  <!-- Thin diagonal accent lines -->
-  <div class="bg-line" style="--x:25%;--y:50%;--len:80px;transform:rotate(30deg);--dur:42s;--d:-2s;--dx:30px;--dy:-15px;--op:0.10"></div>
-  <div class="bg-line" style="--x:65%;--y:38%;--len:60px;transform:rotate(-25deg);--dur:38s;--d:-7s;--dx:-20px;--dy:20px;--op:0.10"></div>
-  <div class="bg-line" style="--x:40%;--y:88%;--len:100px;transform:rotate(15deg);--dur:46s;--d:-4s;--dx:25px;--dy:-20px;--op:0.08"></div>
+  <!-- Tiny pulsing dots — more of them -->
+  <div class="bg-dot"         style="--x:22%;--y:50%;width:5px;height:5px;--dur:4.5s;--d:0s;--op:0.75"></div>
+  <div class="bg-dot success" style="--x:52%;--y:30%;width:4px;height:4px;--dur:5.5s;--d:-1s;--op:0.7"></div>
+  <div class="bg-dot danger"  style="--x:76%;--y:62%;width:5px;height:5px;--dur:6s;--d:-2s;--op:0.75"></div>
+  <div class="bg-dot warning" style="--x:11%;--y:58%;width:4px;height:4px;--dur:4s;--d:-3s;--op:0.7"></div>
+  <div class="bg-dot"         style="--x:55%;--y:66%;width:5px;height:5px;--dur:5s;--d:-2.5s;--op:0.7"></div>
+  <div class="bg-dot success" style="--x:38%;--y:40%;width:4px;height:4px;--dur:6.5s;--d:-1.5s;--op:0.7"></div>
+  <div class="bg-dot"         style="--x:69%;--y:88%;width:5px;height:5px;--dur:5.2s;--d:-3.5s;--op:0.75"></div>
+  <div class="bg-dot danger"  style="--x:92%;--y:22%;width:4px;height:4px;--dur:4.8s;--d:-0.5s;--op:0.7"></div>
+  <div class="bg-dot"         style="--x:6%;--y:24%;width:5px;height:5px;--dur:5.8s;--d:-2.8s;--op:0.75"></div>
+  <div class="bg-dot success" style="--x:84%;--y:84%;width:4px;height:4px;--dur:4.3s;--d:-1.2s;--op:0.7"></div>
+  <div class="bg-dot warning" style="--x:64%;--y:14%;width:4px;height:4px;--dur:5.7s;--d:-3.2s;--op:0.7"></div>
+  <div class="bg-dot danger"  style="--x:43%;--y:64%;width:5px;height:5px;--dur:4.2s;--d:-2.2s;--op:0.75"></div>
+  <div class="bg-dot"         style="--x:88%;--y:8%;width:4px;height:4px;--dur:6.2s;--d:-0.8s;--op:0.7"></div>
+  <div class="bg-dot success" style="--x:2%;--y:42%;width:4px;height:4px;--dur:5.3s;--d:-1.8s;--op:0.7"></div>
 
-  <!-- A couple of very soft glow orbs (subtle, no big blobs) -->
-  <div class="bg-glow"        style="--x:15%;--y:40%;width:80px;height:80px;--dur:50s;--d:0s;--dx:60px;--dy:-30px;--op:0.10"></div>
-  <div class="bg-glow danger" style="--x:78%;--y:80%;width:70px;height:70px;--dur:48s;--d:-8s;--dx:-40px;--dy:-30px;--op:0.08"></div>
+  <!-- Thin gradient lines -->
+  <div class="bg-line" style="--x:25%;--y:50%;--len:100px;transform:rotate(30deg);--dur:38s;--d:-2s;--dx:50px;--dy:-30px;--op:0.20"></div>
+  <div class="bg-line" style="--x:65%;--y:38%;--len:80px;transform:rotate(-25deg);--dur:34s;--d:-7s;--dx:-40px;--dy:30px;--op:0.20"></div>
+  <div class="bg-line" style="--x:40%;--y:88%;--len:120px;transform:rotate(15deg);--dur:42s;--d:-4s;--dx:40px;--dy:-30px;--op:0.18"></div>
+  <div class="bg-line" style="--x:78%;--y:22%;--len:90px;transform:rotate(60deg);--dur:36s;--d:-10s;--dx:-30px;--dy:50px;--op:0.20"></div>
+
+  <!-- Glow orbs -->
+  <div class="bg-glow"        style="--x:15%;--y:38%;width:100px;height:100px;--dur:46s;--d:0s;--dx:80px;--dy:-40px;--op:0.18"></div>
+  <div class="bg-glow danger" style="--x:78%;--y:78%;width:90px;height:90px;--dur:44s;--d:-8s;--dx:-60px;--dy:-40px;--op:0.15"></div>
 </div>
 
 <!-- LOGIN -->
@@ -951,7 +1000,7 @@
         </div>
       </div>
       <div id="bulk-bar" class="bulk-bar hidden">
-        <span><span class="count" id="bulk-count">0</span>개 선택됨</span>
+        <span><span class="count" id="bulk-bar-count">0</span>개 선택됨</span>
         <button onclick="clearSelection()">선택 해제</button>
         <button class="danger" onclick="bulkDelete()">🗑 일괄 삭제</button>
       </div>
@@ -1012,6 +1061,23 @@
           </div>
           <div id="upload-result" class="upload-result"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- ACTIVITY LOG -->
+    <div id="view-activity" class="hidden">
+      <div class="page-header">
+        <div>
+          <h1>활동 로그</h1>
+          <div class="sub">최근 변경 사항. 이슈가 있을 때 admin이 이전 상태로 복원할 수 있습니다.</div>
+        </div>
+        <button class="btn btn-sm" onclick="renderActivity()">새로고침</button>
+      </div>
+      <div class="panel">
+        <table class="users">
+          <thead><tr><th>시간</th><th>사용자</th><th>액션</th><th>브랜드</th><th>변경 내용</th><th style="text-align:right">복원</th></tr></thead>
+          <tbody id="activity-tbody"></tbody>
+        </table>
       </div>
     </div>
 
@@ -1576,7 +1642,7 @@ function updateBulkBar() {
   const count = selectedBrandIds.size;
   if (!bar) return;
   bar.classList.toggle('hidden', count === 0 || !canDelete(currentUser));
-  document.getElementById('bulk-count').textContent = count;
+  document.getElementById('bulk-bar-count').textContent = count;
 }
 // ----- Subdomain dedup helpers -----
 // Standard SLD prefixes that appear before country ccTLDs (catches com.bd, com.pt, co.uk, etc. without listing every country).
@@ -2112,6 +2178,7 @@ function buildTabs() {
   if (currentUser.role !== 'appointment_setter') tabs.push({ id:'dashboard', label:'대시보드' });
   if (canUpload(currentUser)) tabs.push({ id:'upload', label:'업로드' });
   if (currentUser.role === 'admin') tabs.push({ id:'users', label:'사용자' });
+  if (currentUser.role === 'admin') tabs.push({ id:'activity', label:'활동 로그' });
   document.getElementById('tabs').innerHTML = tabs.map(t =>
     '<button class="tab" data-tab="' + t.id + '" onclick="switchTab(\'' + t.id + '\')">' + t.label + '</button>'
   ).join('');
@@ -2122,9 +2189,11 @@ function switchTab(tab) {
   document.getElementById('view-dashboard').classList.toggle('hidden', tab !== 'dashboard');
   document.getElementById('view-upload').classList.toggle('hidden', tab !== 'upload');
   document.getElementById('view-users').classList.toggle('hidden', tab !== 'users');
+  document.getElementById('view-activity').classList.toggle('hidden', tab !== 'activity');
   if (tab === 'brands') renderBrands();
   if (tab === 'dashboard') renderDashboard();
   if (tab === 'users') renderUsers();
+  if (tab === 'activity') renderActivity();
 }
 
 // =====================================================
@@ -3169,6 +3238,85 @@ async function removeUser(username) {
   if (error) { alert('삭제 실패: ' + error.message); return; }
   await loadProfiles();
   renderUsers(); toast('삭제되었습니다');
+}
+
+// =====================================================
+// Activity Log + Revert
+// =====================================================
+async function renderActivity() {
+  const tbody = document.getElementById('activity-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-dim)">로드 중...</td></tr>';
+  const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300);
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--danger)">로드 실패: ' + escapeHtml(error.message) + '</td></tr>';
+    return;
+  }
+  const rows = data || [];
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text-dim)">활동 기록이 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const desc = describeActivity(r);
+    const isReverted = !!r.reverted_at;
+    let revertCell;
+    if (isReverted) {
+      revertCell = '<span class="muted">' + escapeHtml(r.reverted_by_name || '') + ' · ' + formatDate(r.reverted_at) + ' 복원됨</span>';
+    } else if (currentUser.role === 'admin') {
+      revertCell = '<button class="btn btn-xs btn-danger" onclick="revertActivity(' + r.id + ', this)">복원</button>';
+    } else {
+      revertCell = '<span class="muted">admin만</span>';
+    }
+    return '<tr>' +
+      '<td><div style="font-size:12px;font-feature-settings:\'tnum\'">' + formatDate(r.created_at) + '</div></td>' +
+      '<td><b>' + escapeHtml(r.user_name || 'system') + '</b></td>' +
+      '<td>' + desc.action + '</td>' +
+      '<td><code style="font-size:11.5px">' + escapeHtml(r.brand_domain || '—') + '</code></td>' +
+      '<td style="font-size:12px">' + desc.detail + '</td>' +
+      '<td style="text-align:right">' + revertCell + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function describeActivity(r) {
+  const before = r.before_state || {};
+  const after = r.after_state || {};
+  const statusLbl = { pending: '<span class="status-badge status-pending">대기중</span>', approved: '<span class="status-badge status-approved">승인</span>', rejected: '<span class="status-badge status-rejected">반려</span>' };
+  if (r.action === 'delete') {
+    return { action: '<span class="status-badge status-rejected">삭제</span>', detail: '브랜드 삭제됨 (복원 가능)' };
+  }
+  if (r.action === 'update') {
+    const parts = [];
+    if (before.review_status !== after.review_status) {
+      parts.push((statusLbl[before.review_status] || before.review_status || '없음') + ' → ' + (statusLbl[after.review_status] || after.review_status || '없음'));
+    }
+    if (before.assigned_to !== after.assigned_to) {
+      parts.push('할당: <b>' + escapeHtml(before.assigned_to || '없음') + '</b> → <b>' + escapeHtml(after.assigned_to || '없음') + '</b>');
+    }
+    if (before.decided_by !== after.decided_by) {
+      parts.push('결정자: <b>' + escapeHtml(before.decided_by_name || before.decided_by || '없음') + '</b> → <b>' + escapeHtml(after.decided_by_name || after.decided_by || '없음') + '</b>');
+    }
+    if (before.decision_note !== after.decision_note && (before.decision_note || after.decision_note)) {
+      parts.push('코멘트 변경');
+    }
+    return { action: '<span class="status-badge" style="background:var(--accent-soft);color:var(--accent)">수정</span>', detail: parts.join(' · ') || '변경' };
+  }
+  return { action: escapeHtml(r.action), detail: '' };
+}
+
+async function revertActivity(logId, btn) {
+  if (!confirm('이 변경을 되돌리시겠습니까? 브랜드가 이전 상태로 복원됩니다.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '복원 중...'; }
+  const { data, error } = await sb.rpc('revert_activity', { log_id: logId });
+  if (error) {
+    toast('복원 실패: ' + error.message);
+    if (btn) { btn.disabled = false; btn.textContent = '복원'; }
+    return;
+  }
+  toast('✓ 복원 완료');
+  invalidateBrandsCache();
+  renderActivity();
 }
 
 // =====================================================
