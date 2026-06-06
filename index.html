@@ -84,23 +84,21 @@
     position: relative;
     overflow-x: hidden;
   }
-  /* Background graphic */
+  /* Clean static gradient background */
   body::before {
     content: '';
     position: fixed; inset: 0; pointer-events: none; z-index: 0;
     background:
-      radial-gradient(70vw 60vh at 5% -10%, var(--orb-1), transparent 60%),
-      radial-gradient(60vw 50vh at 110% 20%, var(--orb-2), transparent 65%),
-      radial-gradient(50vw 50vh at 50% 110%, var(--orb-3), transparent 65%);
-    filter: blur(20px);
-    animation: orbDrift 28s ease-in-out infinite alternate;
+      radial-gradient(ellipse 80vw 60vh at 15% 0%, rgba(94,106,210,0.18), transparent 60%),
+      radial-gradient(ellipse 70vw 60vh at 100% 25%, rgba(217,59,59,0.10), transparent 65%),
+      radial-gradient(ellipse 70vw 50vh at 50% 110%, rgba(94,210,154,0.10), transparent 65%);
   }
-  @keyframes orbDrift {
-    0%   { transform: translate(0, 0) scale(1); }
-    50%  { transform: translate(30px, -20px) scale(1.04); }
-    100% { transform: translate(-25px, 25px) scale(0.97); }
+  html[data-theme="dark"] body::before {
+    background:
+      radial-gradient(ellipse 80vw 60vh at 15% 0%, rgba(94,106,210,0.30), transparent 60%),
+      radial-gradient(ellipse 70vw 60vh at 100% 25%, rgba(217,59,59,0.18), transparent 65%),
+      radial-gradient(ellipse 70vw 50vh at 50% 110%, rgba(94,210,154,0.15), transparent 65%);
   }
-  /* (grid removed — replaced by floating shapes only) */
 
   /* Vibrant animated bg — more shapes, richer colors, varied motion */
   .bg-shapes {
@@ -808,8 +806,8 @@
 </head>
 <body>
 
-<!-- Vibrant animated background — many colorful shapes drifting -->
-<div class="bg-shapes" aria-hidden="true">
+<!-- Background shapes removed — using static gradient only -->
+<div class="bg-shapes hidden" aria-hidden="true">
   <!-- Outlined rings -->
   <div class="bg-ring"         style="--x:6%;--y:10%;width:46px;height:46px;--dur:32s;--d:0s;--dx:80px;--dy:-50px;--dx2:-40px;--dy2:60px;--dx3:30px;--dy3:-20px;--r1:120deg;--r2:-80deg;--r3:200deg;--op:0.32"></div>
   <div class="bg-ring danger"  style="--x:74%;--y:8%;width:34px;height:34px;--dur:28s;--d:-3s;--dx:-60px;--dy:70px;--dx2:50px;--dy2:-30px;--op:0.30"></div>
@@ -1035,7 +1033,19 @@
           </div>
           <div class="chart-wrap"><svg class="chart-svg" id="dash-chart" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg></div>
         </div>
+        <div class="panel hidden" id="dash-team-panel">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);">
+            <h3 style="font-size:14px;">팀원 할당 현황 <span class="muted" style="font-weight:400;font-size:12px;margin-left:6px">현재 시점</span></h3>
+          </div>
+          <table class="users">
+            <thead><tr><th>팀원</th><th>역할</th><th style="text-align:right">할당</th><th style="text-align:right">대기</th><th style="text-align:right">승인</th><th style="text-align:right">반려</th><th>처리율</th></tr></thead>
+            <tbody id="dash-team-tbody"></tbody>
+          </table>
+        </div>
         <div class="panel hidden" id="dash-userpanel">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);">
+            <h3 style="font-size:14px;">기간 내 활동 (결정 + 업로드)</h3>
+          </div>
           <table class="users">
             <thead><tr><th>팀원</th><th>역할</th><th style="text-align:right">업로드</th><th style="text-align:right">승인</th><th style="text-align:right">반려</th><th style="text-align:right">합계</th><th>승인 비율</th></tr></thead>
             <tbody id="dash-user-tbody"></tbody>
@@ -1089,7 +1099,7 @@
       </div>
       <div class="panel">
         <table class="users">
-          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>정리</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
+          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>정리</th><th>팀 통계</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
           <tbody id="users-tbody"></tbody>
         </table>
       </div>
@@ -1319,6 +1329,12 @@
         <span>서브도메인 정리 허용</span>
       </label>
     </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="inv-can-team-stats" type="checkbox"><span class="slider"></span></span>
+        <span>팀 할당 현황 열람 허용</span>
+      </label>
+    </div>
     <div class="form-group" id="inv-statuses-wrap">
       <label>볼 수 있는 상태</label>
       <div class="status-chips" id="inv-statuses">
@@ -1367,6 +1383,12 @@
       <label class="perm-toggle">
         <span class="switch"><input id="u-can-dedupe" type="checkbox"><span class="slider"></span></span>
         <span>서브도메인 정리 허용</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="u-can-team-stats" type="checkbox"><span class="slider"></span></span>
+        <span>팀 할당 현황 열람 허용</span>
       </label>
     </div>
     <div class="form-group" id="u-statuses-wrap">
@@ -1528,6 +1550,7 @@ function canAssign(u) { return u && (u.role === 'admin' || u.role === 'manager')
 function canDelete(u) { return u && (u.role === 'admin' || u.can_delete === true); }
 function canDedupe(u) { return u && (u.role === 'admin' || u.can_dedupe === true || u.can_delete === true); }
 function canInvite(u) { return u && u.role === 'admin'; }
+function canViewTeamStats(u) { return u && (u.role === 'admin' || u.can_view_team_stats === true); }
 
 // ----- Sort state + helpers -----
 let sortKey = null;   // 'domain' | 'categories' | 'price' | 'status' | 'platform' | 'location' | 'assignee' | 'decider'
@@ -3110,6 +3133,8 @@ function renderUsers() {
       : ('<label class="switch"><input type="checkbox" ' + (u.can_delete ? 'checked' : '') + ' onchange="toggleDelete(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
     const dedupeCell = u.role === 'admin' ? '<span class="muted">항상</span>'
       : ('<label class="switch"><input type="checkbox" ' + (u.can_dedupe ? 'checked' : '') + ' onchange="toggleDedupePerm(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
+    const teamStatsCell = u.role === 'admin' ? '<span class="muted">항상</span>'
+      : ('<label class="switch"><input type="checkbox" ' + (u.can_view_team_stats ? 'checked' : '') + ' onchange="toggleTeamStatsPerm(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
     let statusCell;
     if (u.role !== 'team' && u.role !== 'appointment_setter') statusCell = '<span class="muted">전체</span>';
     else {
@@ -3125,6 +3150,7 @@ function renderUsers() {
       '<td>' + uploadCell + '</td>' +
       '<td>' + deleteCell + '</td>' +
       '<td>' + dedupeCell + '</td>' +
+      '<td>' + teamStatsCell + '</td>' +
       '<td>' + statusCell + '</td>' +
       '<td style="text-align:right">' +
         '<button class="btn btn-xs" onclick="editUser(\'' + escapeAttr(u.username) + '\')">편집</button> ' +
@@ -3150,8 +3176,16 @@ async function toggleDedupePerm(username, val) {
   u.can_dedupe = val;
   if (currentUser.username === username) currentUser.can_dedupe = val;
   toast(val ? '정리 권한 부여' : '정리 권한 해제');
-  // Refresh button visibility
   document.getElementById('btn-dedupe').classList.toggle('hidden', !canDedupe(currentUser));
+}
+async function toggleTeamStatsPerm(username, val) {
+  const u = getProfiles().find(x => x.username === username);
+  if (!u) return;
+  const { error } = await sb.from('profiles').update({ can_view_team_stats: val }).eq('id', u.id);
+  if (error) { toast('업데이트 실패: ' + error.message); return; }
+  u.can_view_team_stats = val;
+  if (currentUser.username === username) currentUser.can_view_team_stats = val;
+  toast(val ? '팀 통계 권한 부여' : '팀 통계 권한 해제');
 }
 async function toggleUpload(username, val) {
   const u = getProfiles().find(x => x.username === username);
@@ -3201,6 +3235,7 @@ function openUserModal() {
   document.getElementById('inv-can-upload').checked = false;
   document.getElementById('inv-can-delete').checked = false;
   document.getElementById('inv-can-dedupe').checked = false;
+  document.getElementById('inv-can-team-stats').checked = false;
   document.querySelectorAll('#inv-statuses .status-chip').forEach(el => el.classList.add('active'));
   generateInvitePw();
   onInviteRoleChange();
@@ -3215,6 +3250,7 @@ async function submitInvite() {
   const can_upload = document.getElementById('inv-can-upload').checked;
   const can_delete = document.getElementById('inv-can-delete').checked;
   const can_dedupe = document.getElementById('inv-can-dedupe').checked;
+  const can_view_team_stats = document.getElementById('inv-can-team-stats').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#inv-statuses .status-chip.active')).map(el => el.dataset.status);
   const res = document.getElementById('inv-result');
   if (!email || !password) { res.className = 'upload-result error show'; res.textContent = '이메일/비밀번호 필수'; return; }
@@ -3223,7 +3259,7 @@ async function submitInvite() {
   res.className = 'upload-result show'; res.textContent = '계정 생성 중...';
   try {
     const { data, error } = await sb.functions.invoke('invite-user', {
-      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, can_dedupe, visible_statuses }
+      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, can_dedupe, can_view_team_stats, visible_statuses }
     });
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);
@@ -3254,6 +3290,7 @@ function editUser(username) {
   document.getElementById('u-can-upload').checked = !!u.can_upload;
   document.getElementById('u-can-delete').checked = !!u.can_delete;
   document.getElementById('u-can-dedupe').checked = !!u.can_dedupe;
+  document.getElementById('u-can-team-stats').checked = !!u.can_view_team_stats;
   const vs = new Set(u.visible_statuses || []);
   document.querySelectorAll('#u-statuses .status-chip').forEach(el => el.classList.toggle('active', vs.has(el.dataset.status)));
   onRoleChange();
@@ -3267,6 +3304,7 @@ async function saveUser() {
   const can_upload = document.getElementById('u-can-upload').checked;
   const can_delete = document.getElementById('u-can-delete').checked;
   const can_dedupe = document.getElementById('u-can-dedupe').checked;
+  const can_view_team_stats = document.getElementById('u-can-team-stats').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#u-statuses .status-chip.active')).map(el => el.dataset.status);
   if (!name || !username) { alert('이름과 아이디를 입력해주세요'); return; }
   const update = {
@@ -3274,6 +3312,7 @@ async function saveUser() {
     can_upload: role === 'admin' ? true : (role === 'manager' ? can_upload : false),
     can_delete,
     can_dedupe,
+    can_view_team_stats,
     visible_statuses: (role === 'team' || role === 'appointment_setter') ? visible_statuses : []
   };
   const { error } = await sb.from('profiles').update(update).eq('id', editingUser);
@@ -3733,15 +3772,23 @@ async function renderDashboard() {
   const filteredForDecisions = dashUser ? all.filter(b => b.decided_by === dashUser) : all.filter(b => b.decided_by);
   const filteredForUploads = dashUser ? all.filter(b => b.uploaded_by === dashUser) : all;
 
+  // Helper: normalize timestamp to ms (Supabase returns ISO string; cache also stores ISO).
+  const toMs = v => {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    const t = Date.parse(v);
+    return Number.isFinite(t) ? t : 0;
+  };
+
   // Fill buckets
   filteredForDecisions.forEach(b => {
-    const t = b.decided_at; if (!t) return;
+    const t = toMs(b.decided_at); if (!t) return;
     const bk = buckets.find(x => t >= x.start && t < x.end);
     if (!bk) return;
     bk[b.review_status] = (bk[b.review_status] || 0) + 1;
   });
   filteredForUploads.forEach(b => {
-    const t = b.uploaded_at; if (!t) return;
+    const t = toMs(b.uploaded_at); if (!t) return;
     const bk = buckets.find(x => t >= x.start && t < x.end);
     if (!bk) return;
     bk.uploaded = (bk.uploaded || 0) + 1;
@@ -3790,6 +3837,56 @@ async function renderDashboard() {
   } else {
     panel.classList.add('hidden');
   }
+
+  // Team assignment status panel (admin or users with permission)
+  const teamPanel = document.getElementById('dash-team-panel');
+  if (canViewTeamStats(currentUser)) {
+    teamPanel.classList.remove('hidden');
+    renderTeamAssignmentPanel(all);
+  } else {
+    teamPanel.classList.add('hidden');
+  }
+}
+
+function renderTeamAssignmentPanel(allBrands) {
+  const tbody = document.getElementById('dash-team-tbody');
+  if (!tbody) return;
+  const users = getProfiles().filter(u => u.role !== 'appointment_setter');
+  const stats = {};
+  users.forEach(u => { stats[u.username] = { name: u.name, role: u.role, total: 0, pending: 0, approved: 0, rejected: 0 }; });
+  allBrands.forEach(b => {
+    if (!b.assigned_to || !stats[b.assigned_to]) return;
+    stats[b.assigned_to].total++;
+    if (b.review_status === 'pending') stats[b.assigned_to].pending++;
+    else if (b.review_status === 'approved') stats[b.assigned_to].approved++;
+    else if (b.review_status === 'rejected') stats[b.assigned_to].rejected++;
+  });
+  const rows = Object.entries(stats)
+    .map(([uname, s]) => {
+      const done = s.approved + s.rejected;
+      const rate = s.total ? Math.round(done * 100 / s.total) : 0;
+      return Object.assign({ uname, done, rate }, s);
+    })
+    .sort((a, b) => b.total - a.total);
+
+  if (!rows.length || rows.every(r => r.total === 0)) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text-dim)">팀원에게 할당된 브랜드가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    return '<tr>' +
+      '<td><b>' + escapeHtml(r.name) + '</b><div class="muted">@' + escapeHtml(r.uname) + '</div></td>' +
+      '<td><span class="role-badge role-' + r.role + '">' + (r.role === 'appointment_setter' ? 'APPT' : r.role) + '</span></td>' +
+      '<td style="text-align:right;font-weight:700;font-feature-settings:\'tnum\';font-size:14px;">' + fmtInt(r.total) + '</td>' +
+      '<td style="text-align:right;color:var(--warning);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.pending) + '</td>' +
+      '<td style="text-align:right;color:var(--success);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.approved) + '</td>' +
+      '<td style="text-align:right;color:var(--danger);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.rejected) + '</td>' +
+      '<td style="min-width:140px"><div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="flex:1;height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + r.rate + '%;background:linear-gradient(90deg,var(--accent),#7984e8);transition:width .3s"></div></div>' +
+        '<span style="font-weight:700;font-size:12px;font-feature-settings:\'tnum\';min-width:40px;text-align:right">' + r.rate + '%</span>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
 }
 
 function niceCeil(v) {
@@ -3846,8 +3943,9 @@ function drawChart(buckets) {
 }
 
 function renderUserBreakdown(all, start, end) {
-  const decisionsInRange = all.filter(b => b.decided_at && b.decided_at >= start && b.decided_at < end && b.decided_by);
-  const uploadsInRange = all.filter(b => b.uploaded_at && b.uploaded_at >= start && b.uploaded_at < end && b.uploaded_by);
+  const _toMs = v => { if (v == null) return 0; if (typeof v === 'number') return v; const t = Date.parse(v); return Number.isFinite(t) ? t : 0; };
+  const decisionsInRange = all.filter(b => { const t = _toMs(b.decided_at); return t && t >= start && t < end && b.decided_by; });
+  const uploadsInRange = all.filter(b => { const t = _toMs(b.uploaded_at); return t && t >= start && t < end && b.uploaded_by; });
   const byUser = {};
   decisionsInRange.forEach(b => {
     const u = b.decided_by;
