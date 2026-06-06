@@ -331,6 +331,19 @@
   .stat-card.pending .value { color: var(--warning); }
   .stat-card.approved .value { color: var(--success); }
   .stat-card.rejected .value { color: var(--danger); }
+  .stat-card.clickable { cursor: pointer; transition: transform .12s, box-shadow .12s, border-color .12s; }
+  .stat-card.clickable:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 4px 12px rgba(94,106,210,0.10); }
+  .stat-card.clickable:hover .value { filter: brightness(1.1); }
+  .stat-card.clickable::after {
+    content: '→'; position: absolute; right: 12px; top: 12px;
+    opacity: 0; transition: opacity .12s, transform .12s; color: var(--accent); font-size: 14px;
+  }
+  .stat-card { position: relative; }
+  .stat-card.clickable:hover::after { opacity: 1; transform: translateX(2px); }
+
+  /* Clickable cells in team assignment panel */
+  td.tap-cell { cursor: pointer; transition: background .1s; }
+  td.tap-cell:hover { background: var(--accent-soft); }
 
   /* Toolbar */
   .toolbar {
@@ -2219,6 +2232,33 @@ function buildTabs() {
     '<button class="tab" data-tab="' + t.id + '" onclick="switchTab(\'' + t.id + '\')">' + t.label + '</button>'
   ).join('');
 }
+// Navigate to brand list with filters preset (used by clickable stats and team panel cells)
+function navToFilteredBrands(opts) {
+  opts = opts || {};
+  // Reset all filters first for a clean state
+  const s = document.getElementById('search'); if (s) s.value = '';
+  const fcountry = document.getElementById('filter-country'); if (fcountry) fcountry.value = '';
+  const fcat = document.getElementById('filter-category'); if (fcat) fcat.value = '';
+  const fdl = document.getElementById('filter-domlen'); if (fdl) fdl.value = '';
+  const fs = document.getElementById('filter-status');
+  const fa = document.getElementById('filter-assignee');
+  if (fs) fs.value = opts.status || '';
+  // assignee may need to be populated first — set after tab switch via post-render hook below
+  selectedBrandIds.clear();
+  currentPage = 1;
+  switchTab('brands');
+  // Wait a tick so the assignee dropdown is populated by renderBrands, then apply
+  if (opts.assignee !== undefined) {
+    setTimeout(() => {
+      const fa2 = document.getElementById('filter-assignee');
+      if (fa2 && !fa2.classList.contains('hidden')) {
+        fa2.value = opts.assignee || '';
+        renderBrands();
+      }
+    }, 100);
+  }
+}
+
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
   document.getElementById('view-brands').classList.toggle('hidden', tab !== 'brands');
@@ -2574,14 +2614,14 @@ async function renderBrands() {
   const rejected = brands.filter(b => b.review_status === 'rejected').length;
   const dupes = brands.filter(b => b.pending_update).length;
   let statsHtml =
-    '<div class="stat-card"><div class="label">전체</div><div class="value">' + fmtInt(total) + '</div></div>' +
-    '<div class="stat-card pending"><div class="label">대기중</div><div class="value">' + fmtInt(pending) + '</div></div>' +
-    '<div class="stat-card approved"><div class="label">승인</div><div class="value">' + fmtInt(approved) + '</div></div>' +
-    '<div class="stat-card rejected"><div class="label">반려</div><div class="value">' + fmtInt(rejected) + '</div></div>';
-  if (dupes) statsHtml += '<div class="stat-card"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(dupes) + '</div></div>';
+    '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(total) + '</div></div>' +
+    '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(pending) + '</div></div>' +
+    '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(approved) + '</div></div>' +
+    '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(rejected) + '</div></div>';
+  if (dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(dupes) + '</div></div>';
   if (currentUser.role === 'team') {
     const me = brands.filter(b => b.assigned_to === currentUser.username).length;
-    statsHtml += '<div class="stat-card"><div class="label">내 할당</div><div class="value">' + fmtInt(me) + '</div></div>';
+    statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({assignee:\'' + escapeAttr(currentUser.username) + '\'})"><div class="label">내 할당</div><div class="value">' + fmtInt(me) + '</div></div>';
   }
   document.getElementById('stats').innerHTML = statsHtml;
   document.getElementById('brands-subtitle').textContent =
@@ -3803,21 +3843,25 @@ async function renderDashboard() {
 
   const isTeam = currentUser.role === 'team';
   const meWord = isTeam ? '내 ' : '';
+  // When dashboard is filtered to a specific user, clicking propagates that filter
+  const assigneeArg = dashUser ? (",assignee:'" + dashUser + "'") : '';
+  const clickAttr = (status) => 'onclick="navToFilteredBrands({status:\'' + status + '\'' + assigneeArg + '})"';
+  const clickAttrAssignee = 'onclick="navToFilteredBrands({assignee:\'' + (dashUser || '') + '\'})"';
+
   let statsHtml = '';
-  // Show upload stats only if relevant (admin/manager, or filtering by a user who can upload)
   if (!isTeam) {
     statsHtml += '<div class="stat-card"><div class="label">오늘 업로드</div><div class="value" style="color:var(--accent)">' + fmtInt(todayBucket.uploaded) + '</div></div>';
   }
   statsHtml +=
-    '<div class="stat-card"><div class="label">' + meWord + '오늘 승인</div><div class="value" style="color:var(--success)">' + fmtInt(todayBucket.approved) + '</div></div>' +
-    '<div class="stat-card"><div class="label">' + meWord + '오늘 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(todayBucket.rejected) + '</div></div>';
+    '<div class="stat-card clickable" ' + clickAttr('approved') + '><div class="label">' + meWord + '오늘 승인</div><div class="value" style="color:var(--success)">' + fmtInt(todayBucket.approved) + '</div></div>' +
+    '<div class="stat-card clickable" ' + clickAttr('rejected') + '><div class="label">' + meWord + '오늘 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(todayBucket.rejected) + '</div></div>';
   if (!isTeam) {
     statsHtml += '<div class="stat-card"><div class="label">최근 ' + periodLabel + ' 업로드</div><div class="value" style="color:var(--accent)">' + fmtInt(tot.u) + '</div></div>';
   }
   statsHtml +=
-    '<div class="stat-card"><div class="label">' + meWord + '최근 ' + periodLabel + ' 승인</div><div class="value" style="color:var(--success)">' + fmtInt(tot.a) + '</div></div>' +
-    '<div class="stat-card"><div class="label">' + meWord + '최근 ' + periodLabel + ' 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(tot.r) + '</div></div>' +
-    '<div class="stat-card"><div class="label">' + meWord + '총 결정</div><div class="value">' + fmtInt(tot.a + tot.r) + '</div></div>' +
+    '<div class="stat-card clickable" ' + clickAttr('approved') + '><div class="label">' + meWord + '최근 ' + periodLabel + ' 승인</div><div class="value" style="color:var(--success)">' + fmtInt(tot.a) + '</div></div>' +
+    '<div class="stat-card clickable" ' + clickAttr('rejected') + '><div class="label">' + meWord + '최근 ' + periodLabel + ' 반려</div><div class="value" style="color:var(--danger)">' + fmtInt(tot.r) + '</div></div>' +
+    '<div class="stat-card clickable" ' + clickAttrAssignee + '><div class="label">' + meWord + '총 결정</div><div class="value">' + fmtInt(tot.a + tot.r) + '</div></div>' +
     '<div class="stat-card"><div class="label">' + meWord + '승인 비율</div><div class="value">' + rate + '%</div></div>';
   document.getElementById('dash-stats').innerHTML = statsHtml;
 
@@ -3874,13 +3918,17 @@ function renderTeamAssignmentPanel(allBrands) {
     return;
   }
   tbody.innerHTML = rows.map(r => {
+    const navAll = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "'})";
+    const navPending = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'pending'})";
+    const navApproved = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'approved'})";
+    const navRejected = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'rejected'})";
     return '<tr>' +
       '<td><b>' + escapeHtml(r.name) + '</b><div class="muted">@' + escapeHtml(r.uname) + '</div></td>' +
       '<td><span class="role-badge role-' + r.role + '">' + (r.role === 'appointment_setter' ? 'APPT' : r.role) + '</span></td>' +
-      '<td style="text-align:right;font-weight:700;font-feature-settings:\'tnum\';font-size:14px;">' + fmtInt(r.total) + '</td>' +
-      '<td style="text-align:right;color:var(--warning);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.pending) + '</td>' +
-      '<td style="text-align:right;color:var(--success);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.approved) + '</td>' +
-      '<td style="text-align:right;color:var(--danger);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.rejected) + '</td>' +
+      '<td class="tap-cell" onclick="' + navAll + '" style="text-align:right;font-weight:700;font-feature-settings:\'tnum\';font-size:14px;" title="할당된 브랜드 보기">' + fmtInt(r.total) + '</td>' +
+      '<td class="tap-cell" onclick="' + navPending + '" style="text-align:right;color:var(--warning);font-weight:600;font-feature-settings:\'tnum\';" title="대기중 브랜드 보기">' + fmtInt(r.pending) + '</td>' +
+      '<td class="tap-cell" onclick="' + navApproved + '" style="text-align:right;color:var(--success);font-weight:600;font-feature-settings:\'tnum\';" title="승인된 브랜드 보기">' + fmtInt(r.approved) + '</td>' +
+      '<td class="tap-cell" onclick="' + navRejected + '" style="text-align:right;color:var(--danger);font-weight:600;font-feature-settings:\'tnum\';" title="반려된 브랜드 보기">' + fmtInt(r.rejected) + '</td>' +
       '<td style="min-width:140px"><div style="display:flex;align-items:center;gap:8px">' +
         '<div style="flex:1;height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + r.rate + '%;background:linear-gradient(90deg,var(--accent),#7984e8);transition:width .3s"></div></div>' +
         '<span style="font-weight:700;font-size:12px;font-feature-settings:\'tnum\';min-width:40px;text-align:right">' + r.rate + '%</span>' +
