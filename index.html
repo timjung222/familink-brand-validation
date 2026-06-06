@@ -1193,6 +1193,19 @@
   </div>
 </div>
 
+<!-- Bulk Assign Loading Modal -->
+<div id="modal-bulk-loading" class="modal-bg">
+  <div class="modal" style="max-width: 400px; text-align: center;">
+    <div class="spinner" style="margin: 0 auto 14px"></div>
+    <h3 style="margin-bottom: 4px">할당 중...</h3>
+    <div class="muted" id="bal-stage" style="font-size: 12.5px; margin-bottom: 14px">서버에 변경사항 적용 중</div>
+    <div class="load-progress">
+      <div class="load-progress-bar"><div id="bal-fill" style="width:0%"></div></div>
+      <div class="load-progress-meta"><b id="bal-pct">0%</b> <span class="sub" id="bal-detail"></span></div>
+    </div>
+  </div>
+</div>
+
 <!-- Dedupe Loading Modal -->
 <div id="modal-dedupe-loading" class="modal-bg">
   <div class="modal" style="max-width: 400px; text-align: center;">
@@ -2864,17 +2877,25 @@ async function updateBulkHelp() {
   else c = all.filter(b => b.review_status === 'pending');
   document.getElementById('bulk-help').textContent = '대상 후보 ' + fmtInt(c.length) + '개';
 }
+function _balSet(stage, pct, detail) {
+  const s = document.getElementById('bal-stage');
+  const f = document.getElementById('bal-fill');
+  const p = document.getElementById('bal-pct');
+  const d = document.getElementById('bal-detail');
+  if (s && stage != null) s.textContent = stage;
+  if (f && pct != null) f.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  if (p && pct != null) p.textContent = Math.round(pct) + '%';
+  if (d) d.textContent = detail || '';
+}
+
 async function confirmBulkAssign() {
   const userEl = document.getElementById('bulk-user');
   const countEl = document.getElementById('bulk-count');
   const scopeEl = document.getElementById('bulk-scope');
   const user = userEl ? String(userEl.value || '').trim() : '';
-  // Defensive number parsing: try valueAsNumber, raw value, attribute value, then digit-only string
   let n = NaN;
   if (countEl) {
-    if (typeof countEl.valueAsNumber === 'number' && Number.isFinite(countEl.valueAsNumber)) {
-      n = countEl.valueAsNumber;
-    }
+    if (typeof countEl.valueAsNumber === 'number' && Number.isFinite(countEl.valueAsNumber)) n = countEl.valueAsNumber;
     if (!Number.isFinite(n)) {
       const raw = String(countEl.value != null ? countEl.value : (countEl.getAttribute('value') || '')).replace(/[^\d.-]/g, '').trim();
       if (raw) n = Number(raw);
@@ -2882,12 +2903,9 @@ async function confirmBulkAssign() {
   }
   const scope = scopeEl ? scopeEl.value : 'unassigned_pending';
   if (!user) { toast('팀원을 선택하세요'); return; }
-  if (!Number.isFinite(n) || n < 1) {
-    const dbg = countEl ? JSON.stringify(countEl.value) : 'null';
-    toast('개수를 1 이상으로 입력하세요 (현재값: ' + dbg + ')');
-    return;
-  }
+  if (!Number.isFinite(n) || n < 1) { toast('개수를 1 이상으로 입력하세요 (현재값: ' + (countEl ? JSON.stringify(countEl.value) : 'null') + ')'); return; }
   n = Math.floor(n);
+
   const all = await dbGetAllBrands();
   let candidates;
   if (scope === 'unassigned_pending') candidates = all.filter(b => !b.assigned_to && b.review_status === 'pending');
@@ -2895,12 +2913,45 @@ async function confirmBulkAssign() {
   else candidates = all.filter(b => b.review_status === 'pending');
   if (!candidates.length) { toast('할당 가능한 브랜드가 없습니다'); return; }
   const take = Math.min(n, candidates.length);
+  // Fisher-Yates partial shuffle
   for (let i = 0; i < take; i++) { const j = i + Math.floor(Math.random() * (candidates.length - i)); const t = candidates[i]; candidates[i] = candidates[j]; candidates[j] = t; }
   const picked = candidates.slice(0, take);
-  picked.forEach(b => { b.assigned_to = user; });
-  await dbBulkPut(picked);
+
+  // Close bulk modal, open loading modal
   closeModal('modal-bulk');
-  toast(fmtInt(take) + '개를 ' + user + '에게 할당했습니다');
+  document.getElementById('modal-bulk-loading').classList.add('active');
+  _balSet('서버에 변경사항 적용 중', 0, '0 / ' + fmtInt(take));
+
+  // Lightweight: UPDATE ... WHERE id IN (...) per chunk (sends only id list + assigned_to)
+  const CHUNK = 500;
+  let done = 0;
+  const t0 = Date.now();
+  for (let i = 0; i < picked.length; i += CHUNK) {
+    const slice = picked.slice(i, i + CHUNK);
+    const ids = slice.map(b => b.id);
+    const { error } = await sb.from('brands').update({ assigned_to: user }).in('id', ids);
+    if (error) {
+      closeModal('modal-bulk-loading');
+      toast('할당 실패: ' + error.message);
+      invalidateBrandsCache();
+      renderBrands();
+      return;
+    }
+    // Update cache
+    if (_brandsCache) {
+      const idset = new Set(ids);
+      _brandsCache.forEach(b => { if (idset.has(b.id)) b.assigned_to = user; });
+    }
+    done += slice.length;
+    const elapsed = (Date.now() - t0) / 1000;
+    const pct = (done / take) * 100;
+    const remaining = done > 0 ? (elapsed / done) * (take - done) : null;
+    _balSet(null, pct, fmtInt(done) + ' / ' + fmtInt(take) + ' · 경과 ' + formatDuration(elapsed) + (remaining ? ' · 남음 ~' + formatDuration(remaining) : ''));
+  }
+  _balSet('완료', 100, fmtInt(take) + '개 할당됨');
+  await new Promise(r => setTimeout(r, 300));
+  closeModal('modal-bulk-loading');
+  toast('✓ ' + fmtInt(take) + '개를 ' + user + '에게 할당');
   renderBrands();
 }
 
@@ -3243,11 +3294,92 @@ async function removeUser(username) {
 // =====================================================
 // Activity Log + Revert
 // =====================================================
+// Compute a grouping signature for a log entry.
+// Same signature + close in time = same logical operation (e.g., bulk assign).
+function activitySignature(r) {
+  const u = r.user_name || '';
+  if (r.action === 'delete') return u + '|delete';
+  const before = r.before_state || {};
+  const after = r.after_state || {};
+  const parts = [u, 'update'];
+  if (before.review_status !== after.review_status) parts.push('status:' + (after.review_status || ''));
+  if (before.assigned_to !== after.assigned_to) parts.push('assign:' + (after.assigned_to || 'null'));
+  if (before.decided_by !== after.decided_by && (before.review_status === after.review_status)) {
+    parts.push('decider:' + (after.decided_by || 'null'));
+  }
+  return parts.join('|');
+}
+
+// Group consecutive log rows with same signature within a 90s window.
+function groupActivityLogs(rows) {
+  const groups = [];
+  let cur = null;
+  const WINDOW_MS = 90 * 1000;
+  for (const r of rows) {
+    r._ms = new Date(r.created_at).getTime();
+    const sig = activitySignature(r);
+    if (cur && cur.signature === sig && Math.abs(cur.minMs - r._ms) <= WINDOW_MS) {
+      cur.entries.push(r);
+      cur.minMs = Math.min(cur.minMs, r._ms);
+      cur.maxMs = Math.max(cur.maxMs, r._ms);
+      cur.allReverted = cur.allReverted && !!r.reverted_at;
+      cur.anyReverted = cur.anyReverted || !!r.reverted_at;
+    } else {
+      if (cur) groups.push(cur);
+      cur = {
+        signature: sig, entries: [r], minMs: r._ms, maxMs: r._ms,
+        allReverted: !!r.reverted_at, anyReverted: !!r.reverted_at,
+      };
+    }
+  }
+  if (cur) groups.push(cur);
+  return groups;
+}
+
+function describeGroup(g) {
+  const first = g.entries[0];
+  const count = g.entries.length;
+  const action = first.action;
+  const before = first.before_state || {};
+  const after = first.after_state || {};
+  const cntLabel = count > 1 ? ('<b>' + fmtInt(count) + '개 브랜드</b> ') : '';
+
+  if (action === 'delete') {
+    return {
+      badge: '<span class="status-badge status-rejected">삭제</span>',
+      detail: cntLabel + (count > 1 ? '삭제' : '삭제됨') + (count > 1 ? ' <span class="muted">(전체 복원 가능)</span>' : ''),
+    };
+  }
+  if (action === 'update') {
+    const parts = [];
+    if (before.review_status !== after.review_status) {
+      const lbl = { pending: '대기중', approved: '승인', rejected: '반려' };
+      if (count > 1) {
+        parts.push(cntLabel + '→ <b>' + (lbl[after.review_status] || after.review_status) + '</b>');
+      } else {
+        parts.push('<b>' + (lbl[before.review_status] || '없음') + '</b> → <b>' + (lbl[after.review_status] || '없음') + '</b>');
+      }
+    } else if (before.assigned_to !== after.assigned_to) {
+      if (count > 1) {
+        parts.push(cntLabel + '할당: <b>' + escapeHtml(after.assigned_to || '미할당') + '</b>');
+      } else {
+        parts.push('할당: <b>' + escapeHtml(before.assigned_to || '없음') + '</b> → <b>' + escapeHtml(after.assigned_to || '없음') + '</b>');
+      }
+    } else if (before.decided_by !== after.decided_by) {
+      parts.push(cntLabel + '결정자: <b>' + escapeHtml(after.decided_by_name || after.decided_by || '없음') + '</b>');
+    } else {
+      parts.push(cntLabel + '수정');
+    }
+    return { badge: '<span class="status-badge" style="background:var(--accent-soft);color:var(--accent)">' + (count > 1 ? '일괄 수정' : '수정') + '</span>', detail: parts.join(' · ') };
+  }
+  return { badge: escapeHtml(action), detail: cntLabel };
+}
+
 async function renderActivity() {
   const tbody = document.getElementById('activity-tbody');
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-dim)">로드 중...</td></tr>';
-  const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(300);
+  const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(2000);
   if (error) {
     tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--danger)">로드 실패: ' + escapeHtml(error.message) + '</td></tr>';
     return;
@@ -3257,64 +3389,68 @@ async function renderActivity() {
     tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:var(--text-dim)">활동 기록이 없습니다.</td></tr>';
     return;
   }
-  tbody.innerHTML = rows.map(r => {
-    const desc = describeActivity(r);
-    const isReverted = !!r.reverted_at;
+  const groups = groupActivityLogs(rows);
+  tbody.innerHTML = groups.map(g => {
+    const first = g.entries[0];
+    const count = g.entries.length;
+    const desc = describeGroup(g);
+    // Brand cell — domain for single, count summary for groups
+    let brandCell;
+    if (count === 1) {
+      brandCell = '<code style="font-size:11.5px">' + escapeHtml(first.brand_domain || '—') + '</code>';
+    } else {
+      const previewDomains = g.entries.slice(0, 3).map(e => e.brand_domain).filter(Boolean);
+      brandCell = '<div style="font-size:11.5px"><b>' + fmtInt(count) + '개</b> · <code>' + previewDomains.map(escapeHtml).join(', ') + (count > 3 ? ' 외 ' + fmtInt(count - 3) + '개' : '') + '</code></div>';
+    }
+    // Time cell — single time or range
+    let timeCell;
+    if (count === 1 || (g.maxMs - g.minMs) < 1000) {
+      timeCell = formatDate(first.created_at);
+    } else {
+      timeCell = formatDate(new Date(g.minMs).toISOString()) + '<br><span class="muted" style="font-size:10.5px">~ ' + formatDate(new Date(g.maxMs).toISOString()) + '</span>';
+    }
+    // Revert cell
     let revertCell;
-    if (isReverted) {
-      revertCell = '<span class="muted">' + escapeHtml(r.reverted_by_name || '') + ' · ' + formatDate(r.reverted_at) + ' 복원됨</span>';
+    if (g.allReverted) {
+      revertCell = '<span class="muted">전체 복원됨</span>';
     } else if (currentUser.role === 'admin') {
-      revertCell = '<button class="btn btn-xs btn-danger" onclick="revertActivity(' + r.id + ', this)">복원</button>';
+      const unrevertedIds = g.entries.filter(e => !e.reverted_at).map(e => e.id);
+      const lbl = count > 1 ? '전체 복원 (' + fmtInt(unrevertedIds.length) + ')' : '복원';
+      revertCell = '<button class="btn btn-xs btn-danger" onclick="revertGroup([' + unrevertedIds.join(',') + '], this)">' + lbl + '</button>';
+      if (g.anyReverted) revertCell += '<div class="muted" style="font-size:10.5px;margin-top:3px">일부 복원됨</div>';
     } else {
       revertCell = '<span class="muted">admin만</span>';
     }
     return '<tr>' +
-      '<td><div style="font-size:12px;font-feature-settings:\'tnum\'">' + formatDate(r.created_at) + '</div></td>' +
-      '<td><b>' + escapeHtml(r.user_name || 'system') + '</b></td>' +
-      '<td>' + desc.action + '</td>' +
-      '<td><code style="font-size:11.5px">' + escapeHtml(r.brand_domain || '—') + '</code></td>' +
+      '<td><div style="font-size:12px;font-feature-settings:\'tnum\'">' + timeCell + '</div></td>' +
+      '<td><b>' + escapeHtml(first.user_name || 'system') + '</b></td>' +
+      '<td>' + desc.badge + '</td>' +
+      '<td>' + brandCell + '</td>' +
       '<td style="font-size:12px">' + desc.detail + '</td>' +
       '<td style="text-align:right">' + revertCell + '</td>' +
     '</tr>';
   }).join('');
 }
 
-function describeActivity(r) {
-  const before = r.before_state || {};
-  const after = r.after_state || {};
-  const statusLbl = { pending: '<span class="status-badge status-pending">대기중</span>', approved: '<span class="status-badge status-approved">승인</span>', rejected: '<span class="status-badge status-rejected">반려</span>' };
-  if (r.action === 'delete') {
-    return { action: '<span class="status-badge status-rejected">삭제</span>', detail: '브랜드 삭제됨 (복원 가능)' };
+async function revertGroup(logIds, btn) {
+  if (!logIds || !logIds.length) return;
+  if (!confirm(fmtInt(logIds.length) + '개 변경을 모두 되돌리시겠습니까?\n브랜드가 이전 상태로 복원됩니다.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '복원 중... 0/' + logIds.length; }
+  // Chunk the bulk RPC call (avoid sending huge arrays)
+  const CHUNK = 500;
+  let done = 0;
+  for (let i = 0; i < logIds.length; i += CHUNK) {
+    const slice = logIds.slice(i, i + CHUNK);
+    const { data, error } = await sb.rpc('revert_activities', { log_ids: slice });
+    if (error) {
+      toast('복원 실패: ' + error.message);
+      if (btn) { btn.disabled = false; btn.textContent = '복원'; }
+      return;
+    }
+    done += (data && data.reverted) || slice.length;
+    if (btn) btn.textContent = '복원 중... ' + done + '/' + logIds.length;
   }
-  if (r.action === 'update') {
-    const parts = [];
-    if (before.review_status !== after.review_status) {
-      parts.push((statusLbl[before.review_status] || before.review_status || '없음') + ' → ' + (statusLbl[after.review_status] || after.review_status || '없음'));
-    }
-    if (before.assigned_to !== after.assigned_to) {
-      parts.push('할당: <b>' + escapeHtml(before.assigned_to || '없음') + '</b> → <b>' + escapeHtml(after.assigned_to || '없음') + '</b>');
-    }
-    if (before.decided_by !== after.decided_by) {
-      parts.push('결정자: <b>' + escapeHtml(before.decided_by_name || before.decided_by || '없음') + '</b> → <b>' + escapeHtml(after.decided_by_name || after.decided_by || '없음') + '</b>');
-    }
-    if (before.decision_note !== after.decision_note && (before.decision_note || after.decision_note)) {
-      parts.push('코멘트 변경');
-    }
-    return { action: '<span class="status-badge" style="background:var(--accent-soft);color:var(--accent)">수정</span>', detail: parts.join(' · ') || '변경' };
-  }
-  return { action: escapeHtml(r.action), detail: '' };
-}
-
-async function revertActivity(logId, btn) {
-  if (!confirm('이 변경을 되돌리시겠습니까? 브랜드가 이전 상태로 복원됩니다.')) return;
-  if (btn) { btn.disabled = true; btn.textContent = '복원 중...'; }
-  const { data, error } = await sb.rpc('revert_activity', { log_id: logId });
-  if (error) {
-    toast('복원 실패: ' + error.message);
-    if (btn) { btn.disabled = false; btn.textContent = '복원'; }
-    return;
-  }
-  toast('✓ 복원 완료');
+  toast('✓ ' + fmtInt(done) + '개 복원 완료');
   invalidateBrandsCache();
   renderActivity();
 }
