@@ -111,32 +111,71 @@
     -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
   }
 
-  /* Floating bg shapes (animated) */
+  /* Refined animated bg — small geometric shapes drifting subtly */
   .bg-shapes {
     position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
   }
-  .bg-shapes .shape {
-    position: absolute;
+  .bg-shapes > * {
+    position: absolute; left: var(--x); top: var(--y);
+    opacity: var(--op, 0.12);
     will-change: transform, opacity;
-    animation: shapeFloat var(--dur, 28s) ease-in-out var(--d, 0s) infinite alternate;
+    animation: bgDrift var(--dur, 38s) ease-in-out var(--d, 0s) infinite alternate;
   }
-  .bg-shapes .shape.spin {
-    animation: shapeFloat var(--dur, 28s) ease-in-out var(--d, 0s) infinite alternate,
-               shapeRotate var(--rdur, 40s) linear var(--d, 0s) infinite;
+  @keyframes bgDrift {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    50%  { transform: translate(var(--dx, 30px), var(--dy, -20px)) rotate(var(--r1, 20deg)); }
+    100% { transform: translate(var(--dx2, -25px), var(--dy2, 25px)) rotate(var(--r2, -15deg)); }
   }
-  @keyframes shapeFloat {
-    0%   { transform: translate(0, 0); }
-    100% { transform: translate(var(--dx, 50px), var(--dy, -40px)); }
+  /* Ring (outlined circle) */
+  .bg-ring {
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
   }
-  @keyframes shapeRotate {
-    to { transform: rotate(360deg); }
+  .bg-ring.danger { border-color: var(--danger); }
+  .bg-ring.warning { border-color: var(--warning); }
+  .bg-ring.success { border-color: var(--success); }
+  /* Square (outlined, rotated) */
+  .bg-sq {
+    border: 1.5px solid var(--accent);
+    border-radius: 4px;
+    transform: rotate(45deg);
   }
-  /* Pulse for tiny dots */
-  .bg-shapes .pulse { animation: shapePulse var(--dur, 6s) ease-in-out var(--d, 0s) infinite; }
-  @keyframes shapePulse {
-    0%, 100% { opacity: var(--op-min, 0.25); transform: scale(0.9); }
-    50%      { opacity: var(--op-max, 0.55); transform: scale(1.2); }
+  /* Plus sign */
+  .bg-plus {
+    width: 18px; height: 18px;
   }
+  .bg-plus::before, .bg-plus::after {
+    content: ''; position: absolute; background: var(--accent);
+    top: 50%; left: 50%;
+  }
+  .bg-plus::before { width: 100%; height: 1.5px; transform: translate(-50%, -50%); }
+  .bg-plus::after  { width: 1.5px; height: 100%; transform: translate(-50%, -50%); }
+  .bg-plus.danger::before, .bg-plus.danger::after { background: var(--danger); }
+  /* Tiny dot */
+  .bg-dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent);
+    animation: bgPulse var(--dur, 5s) ease-in-out var(--d, 0s) infinite;
+  }
+  .bg-dot.danger { background: var(--danger); }
+  .bg-dot.success { background: var(--success); }
+  .bg-dot.warning { background: var(--warning); }
+  @keyframes bgPulse {
+    0%, 100% { opacity: calc(var(--op, 0.4) * 0.4); transform: scale(0.7); }
+    50%      { opacity: var(--op, 0.5); transform: scale(1.2); }
+  }
+  /* Diagonal thin line */
+  .bg-line {
+    width: var(--len, 60px); height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  /* Larger soft blur orb — kept very few */
+  .bg-glow {
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--accent), transparent 70%);
+    filter: blur(8px);
+  }
+  .bg-glow.danger { background: radial-gradient(circle, var(--danger), transparent 70%); }
   .app, .login-wrap { position: relative; z-index: 1; }
 
   h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.022em; color: var(--text); }
@@ -748,22 +787,50 @@
 </head>
 <body>
 
-<!-- Animated background shapes -->
+<!-- Refined animated background — small geometric accents, mostly outlined -->
 <div class="bg-shapes" aria-hidden="true">
-  <div class="shape spin" style="left:8%;top:18%;--dur:32s;--rdur:60s;--d:0s;--dx:80px;--dy:-50px;width:140px;height:140px;background:var(--accent);opacity:0.07;border-radius:50%"></div>
-  <div class="shape spin" style="left:78%;top:12%;--dur:38s;--rdur:80s;--d:-4s;--dx:-60px;--dy:70px;width:180px;height:180px;background:var(--danger);opacity:0.06;border-radius:36px;transform:rotate(20deg)"></div>
-  <div class="shape spin" style="left:18%;top:62%;--dur:26s;--rdur:55s;--d:-8s;--dx:50px;--dy:-30px;width:110px;height:110px;background:var(--success);opacity:0.07;border-radius:30px;transform:rotate(45deg)"></div>
-  <div class="shape spin" style="left:65%;top:70%;--dur:34s;--rdur:70s;--d:-12s;--dx:-70px;--dy:-40px;width:160px;height:160px;background:var(--warning);opacity:0.06;border-radius:50%"></div>
-  <div class="shape spin" style="left:88%;top:55%;--dur:30s;--rdur:50s;--d:-2s;--dx:-40px;--dy:30px;width:90px;height:90px;background:var(--accent);opacity:0.05;border-radius:24px;transform:rotate(15deg)"></div>
-  <div class="shape spin" style="left:4%;top:80%;--dur:36s;--rdur:65s;--d:-15s;--dx:40px;--dy:-20px;width:120px;height:120px;background:#7984e8;opacity:0.05;border-radius:50%"></div>
+  <!-- Outlined rings -->
+  <div class="bg-ring"         style="--x:8%;--y:14%;width:38px;height:38px;--dur:34s;--d:0s;--dx:40px;--dy:-30px;--dx2:-20px;--dy2:25px;--r1:90deg;--r2:-45deg;--op:0.18"></div>
+  <div class="bg-ring danger"  style="--x:72%;--y:10%;width:24px;height:24px;--dur:30s;--d:-3s;--dx:-30px;--dy:40px;--dx2:25px;--dy2:-15px;--op:0.16"></div>
+  <div class="bg-ring"         style="--x:18%;--y:68%;width:50px;height:50px;--dur:42s;--d:-8s;--dx:30px;--dy:-25px;--dx2:-15px;--dy2:30px;--r1:60deg;--op:0.13"></div>
+  <div class="bg-ring success" style="--x:62%;--y:78%;width:30px;height:30px;--dur:36s;--d:-12s;--dx:-25px;--dy:-20px;--op:0.15"></div>
+  <div class="bg-ring"         style="--x:88%;--y:50%;width:42px;height:42px;--dur:38s;--d:-5s;--dx:-20px;--dy:30px;--op:0.14"></div>
+  <div class="bg-ring danger"  style="--x:3%;--y:82%;width:18px;height:18px;--dur:28s;--d:-7s;--dx:35px;--dy:-15px;--op:0.18"></div>
+  <div class="bg-ring"         style="--x:36%;--y:22%;width:14px;height:14px;--dur:26s;--d:-10s;--dx:25px;--dy:25px;--op:0.20"></div>
+  <div class="bg-ring success" style="--x:48%;--y:56%;width:22px;height:22px;--dur:32s;--d:-6s;--dx:-30px;--dy:-20px;--op:0.14"></div>
 
-  <!-- Small pulsing dots -->
-  <div class="shape pulse" style="left:25%;top:32%;--dur:5s;--d:0s;--op-min:0.2;--op-max:0.5;width:8px;height:8px;background:var(--accent);border-radius:50%"></div>
-  <div class="shape pulse" style="left:45%;top:18%;--dur:6.5s;--d:-1s;--op-min:0.15;--op-max:0.4;width:6px;height:6px;background:var(--success);border-radius:50%"></div>
-  <div class="shape pulse" style="left:72%;top:42%;--dur:5.5s;--d:-2s;--op-min:0.2;--op-max:0.5;width:10px;height:10px;background:var(--danger);border-radius:50%"></div>
-  <div class="shape pulse" style="left:55%;top:78%;--dur:7s;--d:-3s;--op-min:0.15;--op-max:0.45;width:7px;height:7px;background:var(--warning);border-radius:50%"></div>
-  <div class="shape pulse" style="left:15%;top:48%;--dur:4.5s;--d:-2.5s;--op-min:0.2;--op-max:0.5;width:5px;height:5px;background:var(--accent);border-radius:50%"></div>
-  <div class="shape pulse" style="left:90%;top:30%;--dur:6s;--d:-4s;--op-min:0.15;--op-max:0.4;width:9px;height:9px;background:#7984e8;border-radius:50%"></div>
+  <!-- Rotated squares (diamonds) -->
+  <div class="bg-sq" style="--x:28%;--y:8%;width:14px;height:14px;--dur:40s;--d:-2s;--dx:30px;--dy:30px;--r1:90deg;--r2:180deg;--op:0.16"></div>
+  <div class="bg-sq" style="--x:82%;--y:32%;width:10px;height:10px;--dur:34s;--d:-9s;--dx:-20px;--dy:25px;--r1:135deg;--op:0.18"></div>
+  <div class="bg-sq" style="--x:42%;--y:72%;width:12px;height:12px;--dur:38s;--d:-11s;--dx:25px;--dy:-30px;--op:0.15"></div>
+  <div class="bg-sq" style="--x:67%;--y:54%;width:8px;height:8px;--dur:30s;--d:-4s;--dx:-15px;--dy:-20px;--op:0.20"></div>
+
+  <!-- Plus signs -->
+  <div class="bg-plus"        style="--x:14%;--y:36%;--dur:32s;--d:-1s;--dx:30px;--dy:20px;--op:0.20"></div>
+  <div class="bg-plus danger" style="--x:58%;--y:18%;--dur:34s;--d:-13s;--dx:-25px;--dy:30px;--op:0.18"></div>
+  <div class="bg-plus"        style="--x:80%;--y:72%;--dur:36s;--d:-6s;--dx:20px;--dy:-25px;--op:0.18"></div>
+  <div class="bg-plus"        style="--x:31%;--y:84%;--dur:28s;--d:-14s;--dx:-20px;--dy:20px;--op:0.16"></div>
+
+  <!-- Tiny pulsing dots -->
+  <div class="bg-dot"          style="--x:22%;--y:48%;width:4px;height:4px;--dur:4.5s;--d:0s;--op:0.55"></div>
+  <div class="bg-dot success"  style="--x:50%;--y:32%;width:3px;height:3px;--dur:5.5s;--d:-1s;--op:0.5"></div>
+  <div class="bg-dot danger"   style="--x:76%;--y:62%;width:5px;height:5px;--dur:6s;--d:-2s;--op:0.55"></div>
+  <div class="bg-dot warning"  style="--x:11%;--y:60%;width:3px;height:3px;--dur:4s;--d:-3s;--op:0.5"></div>
+  <div class="bg-dot"          style="--x:55%;--y:66%;width:4px;height:4px;--dur:5s;--d:-2.5s;--op:0.5"></div>
+  <div class="bg-dot success"  style="--x:38%;--y:40%;width:3px;height:3px;--dur:6.5s;--d:-1.5s;--op:0.5"></div>
+  <div class="bg-dot"          style="--x:69%;--y:88%;width:4px;height:4px;--dur:5.2s;--d:-3.5s;--op:0.55"></div>
+  <div class="bg-dot danger"   style="--x:92%;--y:24%;width:3px;height:3px;--dur:4.8s;--d:-0.5s;--op:0.5"></div>
+  <div class="bg-dot"          style="--x:6%;--y:24%;width:5px;height:5px;--dur:5.8s;--d:-2.8s;--op:0.55"></div>
+  <div class="bg-dot success"  style="--x:84%;--y:84%;width:3px;height:3px;--dur:4.3s;--d:-1.2s;--op:0.5"></div>
+
+  <!-- Thin diagonal accent lines -->
+  <div class="bg-line" style="--x:25%;--y:50%;--len:80px;transform:rotate(30deg);--dur:42s;--d:-2s;--dx:30px;--dy:-15px;--op:0.10"></div>
+  <div class="bg-line" style="--x:65%;--y:38%;--len:60px;transform:rotate(-25deg);--dur:38s;--d:-7s;--dx:-20px;--dy:20px;--op:0.10"></div>
+  <div class="bg-line" style="--x:40%;--y:88%;--len:100px;transform:rotate(15deg);--dur:46s;--d:-4s;--dx:25px;--dy:-20px;--op:0.08"></div>
+
+  <!-- A couple of very soft glow orbs (subtle, no big blobs) -->
+  <div class="bg-glow"        style="--x:15%;--y:40%;width:80px;height:80px;--dur:50s;--d:0s;--dx:60px;--dy:-30px;--op:0.10"></div>
+  <div class="bg-glow danger" style="--x:78%;--y:80%;width:70px;height:70px;--dur:48s;--d:-8s;--dx:-40px;--dy:-30px;--op:0.08"></div>
 </div>
 
 <!-- LOGIN -->
@@ -1056,6 +1123,19 @@
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-decision')">취소</button>
       <button class="btn btn-sm" id="decision-confirm">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dedupe Loading Modal -->
+<div id="modal-dedupe-loading" class="modal-bg">
+  <div class="modal" style="max-width: 400px; text-align: center;">
+    <div class="spinner" style="margin: 0 auto 14px"></div>
+    <h3 style="margin-bottom: 4px">중복 분석 중...</h3>
+    <div class="muted" id="ddl-stage" style="font-size: 12.5px; margin-bottom: 14px">데이터 가져오는 중</div>
+    <div class="load-progress">
+      <div class="load-progress-bar"><div id="ddl-fill" style="width:0%"></div></div>
+      <div class="load-progress-meta"><b id="ddl-pct">0%</b> <span class="sub" id="ddl-detail"></span></div>
     </div>
   </div>
 </div>
@@ -1568,17 +1648,50 @@ function getSubdomainPart(d) {
 
 let _dedupeGroups = []; // [{ root, brands: [...], keeperId }]
 
+function _ddlSet(stage, pct, detail) {
+  const stageEl = document.getElementById('ddl-stage');
+  const fillEl = document.getElementById('ddl-fill');
+  const pctEl = document.getElementById('ddl-pct');
+  const detEl = document.getElementById('ddl-detail');
+  if (stageEl && stage != null) stageEl.textContent = stage;
+  if (fillEl && pct != null) fillEl.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  if (pctEl && pct != null) pctEl.textContent = Math.round(pct) + '%';
+  if (detEl) detEl.textContent = detail || '';
+}
+
 async function openDedupe() {
   if (!canDedupe(currentUser)) { toast('서브도메인 정리 권한이 필요합니다'); return; }
-  toast('중복 분석 중...');
-  const all = await dbGetAllBrands();
-  const groupsMap = {};
-  all.forEach(b => {
-    const root = getRootDomain(b.domain);
-    if (!root) return;
-    if (!groupsMap[root]) groupsMap[root] = [];
-    groupsMap[root].push(b);
+  document.getElementById('modal-dedupe-loading').classList.add('active');
+  _ddlSet('데이터 가져오는 중', 0, '');
+
+  // Fetch all brands (with progress callback). Cache-hit returns instantly.
+  const all = await dbGetAllBrands({
+    onProgress: (done, total) => {
+      const pct = total > 0 ? (done / total) * 80 : 0; // reserve last 20% for grouping
+      _ddlSet('데이터 가져오는 중', pct, fmtInt(done) + ' / ' + fmtInt(total));
+    }
   });
+
+  // Grouping stage
+  _ddlSet('도메인 그룹핑 중', 85, '총 ' + fmtInt(all.length) + '개 도메인 분석');
+  const groupsMap = {};
+  const BATCH = 5000;
+  for (let i = 0; i < all.length; i += BATCH) {
+    const slice = all.slice(i, i + BATCH);
+    slice.forEach(b => {
+      const root = getRootDomain(b.domain);
+      if (!root) return;
+      if (!groupsMap[root]) groupsMap[root] = [];
+      groupsMap[root].push(b);
+    });
+    // Yield to UI so the loading bar updates
+    if (all.length > BATCH) {
+      const pct = 85 + ((i + slice.length) / all.length) * 12;
+      _ddlSet(null, pct, fmtInt(Math.min(i + slice.length, all.length)) + ' / ' + fmtInt(all.length));
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  _ddlSet('keeper 선정 + 정렬', 98, '그룹 ' + fmtInt(Object.keys(groupsMap).length) + '개');
   _dedupeGroups = [];
   Object.keys(groupsMap).forEach(root => {
     const brands = groupsMap[root];
@@ -1602,6 +1715,9 @@ async function openDedupe() {
   });
   // Sort groups by duplicate count desc (most duplicates first)
   _dedupeGroups.sort((a, b) => b.brands.length - a.brands.length);
+  _ddlSet('완료', 100, fmtInt(_dedupeGroups.length) + '개 그룹 발견');
+  await new Promise(r => setTimeout(r, 200)); // brief 100% flash
+  closeModal('modal-dedupe-loading');
   if (!_dedupeGroups.length) { toast('서브도메인 중복이 발견되지 않았습니다'); return; }
   renderDedupeList();
   document.getElementById('modal-dedupe').classList.add('active');
@@ -2680,12 +2796,29 @@ async function updateBulkHelp() {
   document.getElementById('bulk-help').textContent = '대상 후보 ' + fmtInt(c.length) + '개';
 }
 async function confirmBulkAssign() {
-  const user = document.getElementById('bulk-user').value;
-  const rawCount = String(document.getElementById('bulk-count').value || '').replace(/,/g, '').trim();
-  const n = Number(rawCount);
-  const scope = document.getElementById('bulk-scope').value;
+  const userEl = document.getElementById('bulk-user');
+  const countEl = document.getElementById('bulk-count');
+  const scopeEl = document.getElementById('bulk-scope');
+  const user = userEl ? String(userEl.value || '').trim() : '';
+  // Defensive number parsing: try valueAsNumber, raw value, attribute value, then digit-only string
+  let n = NaN;
+  if (countEl) {
+    if (typeof countEl.valueAsNumber === 'number' && Number.isFinite(countEl.valueAsNumber)) {
+      n = countEl.valueAsNumber;
+    }
+    if (!Number.isFinite(n)) {
+      const raw = String(countEl.value != null ? countEl.value : (countEl.getAttribute('value') || '')).replace(/[^\d.-]/g, '').trim();
+      if (raw) n = Number(raw);
+    }
+  }
+  const scope = scopeEl ? scopeEl.value : 'unassigned_pending';
   if (!user) { toast('팀원을 선택하세요'); return; }
-  if (!Number.isFinite(n) || n < 1) { toast('개수를 1 이상으로 입력하세요'); return; }
+  if (!Number.isFinite(n) || n < 1) {
+    const dbg = countEl ? JSON.stringify(countEl.value) : 'null';
+    toast('개수를 1 이상으로 입력하세요 (현재값: ' + dbg + ')');
+    return;
+  }
+  n = Math.floor(n);
   const all = await dbGetAllBrands();
   let candidates;
   if (scope === 'unassigned_pending') candidates = all.filter(b => !b.assigned_to && b.review_status === 'pending');
