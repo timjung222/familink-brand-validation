@@ -781,24 +781,33 @@
   .chart-card .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .chart-card .legend .dot { width: 10px; height: 10px; border-radius: 2px; }
   .chart-wrap { overflow-x: auto; margin-top: 18px; }
-  .chart-svg { display: block; width: 100%; min-width: 640px; height: 300px; font-family: 'Inter', sans-serif; }
+  .chart-svg { display: block; width: 100%; min-width: 900px; height: 380px; font-family: 'Inter', sans-serif; }
   .chart-axis { stroke: var(--border); stroke-width: 1; }
-  .chart-grid { stroke: var(--border); stroke-dasharray: 2 4; opacity: 0.6; }
+  .chart-grid { stroke: var(--border); stroke-dasharray: 2 4; opacity: 0.55; }
+  .chart-zone-weekend { fill: var(--panel-2); opacity: 0.5; }
   .chart-label-x {
-    font-size: 11px; fill: var(--text-dim); font-weight: 500;
-    font-feature-settings: "tnum" 1, "cv11" 1;
-    letter-spacing: 0.01em;
+    font-size: 13px; fill: var(--text-dim); font-weight: 600;
+    font-feature-settings: "tnum" 1, "cv11" 1; letter-spacing: 0;
   }
-  .chart-label-y {
+  .chart-label-x-sub {
     font-size: 10.5px; fill: var(--text-faint); font-weight: 500;
     font-feature-settings: "tnum" 1;
   }
+  .chart-label-x.weekend { fill: var(--danger); opacity: 0.7; }
+  .chart-label-y {
+    font-size: 12px; fill: var(--text-faint); font-weight: 500;
+    font-feature-settings: "tnum" 1;
+  }
   .chart-value {
-    font-size: 10px; fill: var(--text); font-weight: 600;
+    font-size: 11px; fill: var(--text); font-weight: 700;
+    font-feature-settings: "tnum" 1;
+  }
+  .chart-total {
+    font-size: 11.5px; fill: var(--text); font-weight: 700;
     font-feature-settings: "tnum" 1;
   }
   .chart-bar { transition: opacity .15s; }
-  .chart-bar:hover { opacity: 0.8; }
+  .chart-bar:hover { opacity: 0.75; }
 
   .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
 
@@ -1044,7 +1053,7 @@
               <span><span class="dot" style="background:var(--danger)"></span>반려</span>
             </div>
           </div>
-          <div class="chart-wrap"><svg class="chart-svg" id="dash-chart" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="chart-wrap"><svg class="chart-svg" id="dash-chart" viewBox="0 0 1280 360" preserveAspectRatio="xMidYMid meet"></svg></div>
         </div>
         <div class="panel hidden" id="dash-team-panel">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);">
@@ -3917,28 +3926,48 @@ function startOfMonth(t) { const d = new Date(t); d.setHours(0,0,0,0); d.setDate
 function buildBuckets(now, period) {
   const buckets = [];
   if (period === 'daily') {
+    // Last 30 days
     const today = startOfDay(now);
-    for (let i = 13; i >= 0; i--) {
+    for (let i = 29; i >= 0; i--) {
       const start = today - i * 86400000;
       const end = start + 86400000;
       const d = new Date(start);
-      buckets.push({ start, end, label: (d.getMonth()+1) + '/' + d.getDate() });
+      const dow = d.getDay(); // 0=Sun, 6=Sat
+      buckets.push({
+        start, end,
+        label: (d.getMonth()+1) + '/' + d.getDate(),
+        sub: ['일','월','화','수','목','금','토'][dow],
+        isWeekend: dow === 0 || dow === 6,
+      });
     }
   } else if (period === 'weekly') {
+    // Last 16 weeks
     const w = startOfWeek(now);
-    for (let i = 11; i >= 0; i--) {
+    for (let i = 15; i >= 0; i--) {
       const start = w - i * 7 * 86400000;
       const end = start + 7 * 86400000;
       const d = new Date(start);
-      buckets.push({ start, end, label: (d.getMonth()+1) + '/' + d.getDate() });
+      const endD = new Date(end - 86400000); // last day of week
+      buckets.push({
+        start, end,
+        label: (d.getMonth()+1) + '/' + d.getDate(),
+        sub: '~' + (endD.getMonth()+1) + '/' + endD.getDate(),
+        isWeekend: false,
+      });
     }
   } else {
+    // Last 18 months
     const m = startOfMonth(now);
-    for (let i = 11; i >= 0; i--) {
+    for (let i = 17; i >= 0; i--) {
       const d = new Date(m); d.setMonth(d.getMonth() - i);
       const start = d.getTime();
       const next = new Date(start); next.setMonth(next.getMonth() + 1);
-      buckets.push({ start, end: next.getTime(), label: (d.getMonth()+1) + '월' });
+      buckets.push({
+        start, end: next.getTime(),
+        label: (d.getMonth()+1) + '월',
+        sub: d.getMonth() === 0 ? ("'" + String(d.getFullYear()).slice(-2)) : '',
+        isWeekend: false,
+      });
     }
   }
   return buckets;
@@ -3994,7 +4023,7 @@ async function renderDashboard() {
   // Period totals
   const tot = buckets.reduce((acc, b) => ({ u: acc.u + b.uploaded, a: acc.a + b.approved, r: acc.r + b.rejected }), { u: 0, a: 0, r: 0 });
   const todayBucket = buckets[buckets.length - 1];
-  const periodLabel = { daily: '14일', weekly: '12주', monthly: '12개월' }[dashPeriod];
+  const periodLabel = { daily: '30일', weekly: '16주', monthly: '18개월' }[dashPeriod];
   const rate = (tot.a + tot.r) > 0 ? Math.round(tot.a * 100 / (tot.a + tot.r)) : 0;
 
   const isTeam = currentUser.role === 'team';
@@ -4198,44 +4227,72 @@ function niceCeil(v) {
 
 function drawChart(buckets) {
   const svg = document.getElementById('dash-chart');
-  const W = 720, H = 300, PAD_L = 44, PAD_R = 16, PAD_T = 16, PAD_B = 42;
+  const W = 1280, H = 360, PAD_L = 52, PAD_R = 20, PAD_T = 30, PAD_B = 56;
   const chartW = W - PAD_L - PAD_R, chartH = H - PAD_T - PAD_B;
-  const maxV = Math.max(1, ...buckets.map(b => Math.max(b.uploaded, b.approved, b.rejected)));
+  const maxV = Math.max(1,
+    ...buckets.map(b => Math.max(b.uploaded || 0, b.approved || 0, b.rejected || 0))
+  );
   const niceMax = niceCeil(maxV);
   const groupW = chartW / buckets.length;
-  const barW = Math.max(2.5, Math.min(13, groupW * 0.22));
-  const innerGap = 2;
+  const barW = Math.max(3, Math.min(18, groupW * 0.26));
+  const innerGap = Math.max(1.5, barW * 0.22);
   let html = '';
 
-  // Y grid
-  for (let i = 0; i <= 4; i++) {
-    const y = PAD_T + chartH - (chartH * i / 4);
-    const v = Math.round(niceMax * i / 4);
+  // Y grid (6 steps)
+  for (let i = 0; i <= 6; i++) {
+    const y = PAD_T + chartH - (chartH * i / 6);
+    const v = Math.round(niceMax * i / 6);
     html += '<line class="chart-grid" x1="' + PAD_L + '" y1="' + y + '" x2="' + (W - PAD_R) + '" y2="' + y + '"/>';
-    html += '<text class="chart-label-y" x="' + (PAD_L - 8) + '" y="' + (y + 3.5) + '" text-anchor="end">' + v + '</text>';
+    html += '<text class="chart-label-y" x="' + (PAD_L - 10) + '" y="' + (y + 4) + '" text-anchor="end">' + fmtInt(v) + '</text>';
   }
+  // Weekend zones (daily mode only)
+  if (buckets.some(b => b.isWeekend)) {
+    buckets.forEach((b, i) => {
+      if (!b.isWeekend) return;
+      const cx = PAD_L + groupW * (i + 0.5);
+      const zoneW = groupW;
+      html += '<rect class="chart-zone-weekend" x="' + (cx - zoneW/2).toFixed(1) + '" y="' + PAD_T + '" width="' + zoneW.toFixed(1) + '" height="' + chartH + '"/>';
+    });
+  }
+  // X axis line
   html += '<line class="chart-axis" x1="' + PAD_L + '" y1="' + (PAD_T + chartH) + '" x2="' + (W - PAD_R) + '" y2="' + (PAD_T + chartH) + '"/>';
 
-  // Bars (upload | approved | rejected)
+  // Bars (upload | approved | rejected) — and total above each group
   const COLORS = ['var(--accent)', 'var(--success)', 'var(--danger)'];
   buckets.forEach((b, i) => {
     const cx = PAD_L + groupW * (i + 0.5);
     const totalW = barW * 3 + innerGap * 2;
     const x0 = cx - totalW / 2;
-    const vals = [b.uploaded, b.approved, b.rejected];
+    const vals = [b.uploaded || 0, b.approved || 0, b.rejected || 0];
+    let maxBarTopY = PAD_T + chartH;
     vals.forEach((v, k) => {
       const h = chartH * (v / niceMax);
       const x = x0 + k * (barW + innerGap);
       const y = PAD_T + chartH - h;
       if (v > 0) {
-        html += '<rect class="chart-bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(1.5, h).toFixed(1) + '" rx="2" fill="' + COLORS[k] + '"/>';
-        if (h > 16) html += '<text class="chart-value" x="' + (x + barW/2).toFixed(1) + '" y="' + (y - 4).toFixed(1) + '" text-anchor="middle">' + v + '</text>';
+        html += '<rect class="chart-bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(2, h).toFixed(1) + '" rx="2.5" fill="' + COLORS[k] + '"/>';
+        if (h > 20 && barW > 7) {
+          html += '<text class="chart-value" x="' + (x + barW/2).toFixed(1) + '" y="' + (y - 5).toFixed(1) + '" text-anchor="middle">' + fmtInt(v) + '</text>';
+        }
+        if (y < maxBarTopY) maxBarTopY = y;
       }
     });
+    // Total label above bar group (decisions only)
+    const decTotal = (b.approved || 0) + (b.rejected || 0);
+    if (decTotal > 0) {
+      html += '<text class="chart-total" x="' + cx.toFixed(1) + '" y="' + Math.max(PAD_T - 4, maxBarTopY - 16).toFixed(1) + '" text-anchor="middle" opacity="0.7">' + fmtInt(decTotal) + '</text>';
+    }
 
-    // X label — show all if <= 14 buckets, else every other
-    const showLabel = buckets.length <= 14 || i % 2 === 0;
-    if (showLabel) html += '<text class="chart-label-x" x="' + cx.toFixed(1) + '" y="' + (PAD_T + chartH + 18) + '" text-anchor="middle">' + escapeHtml(b.label) + '</text>';
+    // X label — choose density per period
+    let showLabel = true;
+    if (buckets.length > 18) showLabel = i % 2 === 0;
+    if (showLabel) {
+      const labelClass = 'chart-label-x' + (b.isWeekend ? ' weekend' : '');
+      html += '<text class="' + labelClass + '" x="' + cx.toFixed(1) + '" y="' + (PAD_T + chartH + 20) + '" text-anchor="middle">' + escapeHtml(b.label) + '</text>';
+      if (b.sub) {
+        html += '<text class="chart-label-x-sub" x="' + cx.toFixed(1) + '" y="' + (PAD_T + chartH + 36) + '" text-anchor="middle">' + escapeHtml(b.sub) + '</text>';
+      }
+    }
   });
   svg.innerHTML = html;
 }
