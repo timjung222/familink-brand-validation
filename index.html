@@ -1112,7 +1112,7 @@
       </div>
       <div class="panel">
         <table class="users">
-          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>정리</th><th>팀 통계</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
+          <thead><tr><th>이름</th><th>아이디</th><th>권한</th><th>업로드</th><th>삭제</th><th>정리</th><th>팀 통계</th><th>코멘트</th><th>볼 수 있는 상태</th><th style="text-align:right">액션</th></tr></thead>
           <tbody id="users-tbody"></tbody>
         </table>
       </div>
@@ -1348,6 +1348,12 @@
         <span>팀 할당 현황 열람 허용</span>
       </label>
     </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="inv-can-comments" type="checkbox"><span class="slider"></span></span>
+        <span>결정 코멘트 열람 허용</span>
+      </label>
+    </div>
     <div class="form-group" id="inv-statuses-wrap">
       <label>볼 수 있는 상태</label>
       <div class="status-chips" id="inv-statuses">
@@ -1402,6 +1408,12 @@
       <label class="perm-toggle">
         <span class="switch"><input id="u-can-team-stats" type="checkbox"><span class="slider"></span></span>
         <span>팀 할당 현황 열람 허용</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="perm-toggle">
+        <span class="switch"><input id="u-can-comments" type="checkbox"><span class="slider"></span></span>
+        <span>결정 코멘트 열람 허용</span>
       </label>
     </div>
     <div class="form-group" id="u-statuses-wrap">
@@ -1467,9 +1479,9 @@ function cacheUpdateBrand(b) {
   else _brandsCache.unshift(b);
 }
 function cacheRemoveBrands(ids) {
-  if (!_brandsCache) return;
   const s = new Set(ids);
-  _brandsCache = _brandsCache.filter(b => !s.has(b.id));
+  if (_brandsCache) _brandsCache = _brandsCache.filter(b => !s.has(b.id));
+  if (_currentPageBrands) _currentPageBrands = _currentPageBrands.filter(b => !s.has(b.id));
 }
 
 // Parallel paginated fetch — gets total count first, then all pages concurrently.
@@ -1519,11 +1531,11 @@ async function dbGetAllBrands(opts) {
 }
 
 async function dbGetBrand(id) {
-  // Try cache first
-  if (_brandsCache) {
-    const cached = _brandsCache.find(b => b.id === id);
-    if (cached) return cached;
-  }
+  // Try current page first (most likely hit)
+  let cached = _currentPageBrands && _currentPageBrands.find(b => b.id === id);
+  if (cached) return cached;
+  // Then full cache (used by dedupe/download flows)
+  if (_brandsCache) { cached = _brandsCache.find(b => b.id === id); if (cached) return cached; }
   const { data, error } = await sb.from('brands').select('*').eq('id', id).single();
   if (error) return null;
   return data;
@@ -1554,6 +1566,103 @@ async function dbDeleteBrand(id) {
   cacheRemoveBrands([id]);
 }
 
+// ===== Server-side filter helpers (for paginated brand list) =====
+function _escLike(s) { return String(s || '').replace(/[\\%_]/g, ch => '\\' + ch); }
+function buildBrandFilter(q, f) {
+  if (!f) f = {};
+  if (f.status === '__dup') q = q.not('pending_update', 'is', null);
+  else if (f.status) q = q.eq('review_status', f.status);
+  if (f.country) q = q.eq('country_code', f.country);
+  if (f.assignee === '__unassigned') q = q.is('assigned_to', null);
+  else if (f.assignee) q = q.eq('assigned_to', f.assignee);
+  if (f.category) {
+    const c = _escLike(f.category);
+    q = q.ilike('categories', '%/' + c + '%');
+  }
+  if (f.domlen === 'long') q = q.gte('domain_length', 15);
+  else if (f.domlen === 'short') q = q.lt('domain_length', 15);
+  if (f.search) {
+    const s = String(f.search).replace(/[%_,()]/g, ' ').trim();
+    if (s) {
+      q = q.or('domain.ilike.%' + s + '%,categories.ilike.%' + s + '%,city.ilike.%' + s + '%,company_location.ilike.%' + s + '%');
+    }
+  }
+  return q;
+}
+
+const SORT_FIELD_MAP = {
+  domain: 'domain', categories: 'categories', price: 'average_product_price_usd',
+  status: 'review_status', platform: 'plan', location: 'city',
+  assignee: 'assigned_to', decider: 'decided_by'
+};
+
+// Fetch one page (500 rows) with server-side filter + sort + total count.
+async function loadBrandPage(filters, sort, page) {
+  let q = sb.from('brands').select('*', { count: 'exact' });
+  q = buildBrandFilter(q, filters);
+  const sortField = SORT_FIELD_MAP[sort && sort.key] || 'uploaded_at';
+  q = q.order(sortField, { ascending: !!(sort && sort.dir === 'asc') });
+  const from = (page - 1) * PAGE_SIZE;
+  q = q.range(from, from + PAGE_SIZE - 1);
+  const { data, count, error } = await q;
+  if (error) throw new Error(error.message);
+  return { rows: data || [], total: count || 0 };
+}
+
+// Fetch all filtered IDs (used for "select all filtered" + bulk delete).
+async function loadAllFilteredIds(filters) {
+  const PAGE = 1000;
+  let from = 0;
+  const ids = [];
+  for (;;) {
+    let q = sb.from('brands').select('id', { head: false }).order('uploaded_at', { ascending: false });
+    q = buildBrandFilter(q, filters);
+    q = q.range(from, from + PAGE - 1);
+    const { data, error } = await q;
+    if (error) break;
+    (data || []).forEach(r => ids.push(r.id));
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return ids;
+}
+
+// 5 parallel head-count queries for the stats cards.
+async function loadBrandStats(filters) {
+  const baseFilters = Object.assign({}, filters, { status: '' });
+  function makeCount(opts) {
+    let q = sb.from('brands').select('id', { count: 'exact', head: true });
+    if (opts.status === '__dup') q = q.not('pending_update', 'is', null);
+    else if (opts.status) q = q.eq('review_status', opts.status);
+    q = buildBrandFilter(q, Object.assign({}, baseFilters, { status: '' }));
+    return q.then(r => r.count || 0);
+  }
+  const [total, pending, approved, rejected, dupes] = await Promise.all([
+    makeCount({}),
+    makeCount({ status: 'pending' }),
+    makeCount({ status: 'approved' }),
+    makeCount({ status: 'rejected' }),
+    makeCount({ status: '__dup' }),
+  ]);
+  return { total, pending, approved, rejected, dupes };
+}
+
+// One-time fetch of distinct filter values (cached for session).
+let _distinctValues = null;
+async function loadDistinctFilters() {
+  if (_distinctValues) return _distinctValues;
+  const [cRes, catRes] = await Promise.all([
+    sb.rpc('distinct_countries'),
+    sb.rpc('distinct_top_categories'),
+  ]);
+  _distinctValues = {
+    countries: (cRes.data || []).map(r => r.cc).filter(Boolean),
+    categories: (catRes.data || []).map(r => r.cat).filter(Boolean),
+  };
+  return _distinctValues;
+}
+function invalidateDistinctFilters() { _distinctValues = null; }
+
 // ----- Permission helpers -----
 function canUpload(u) { return u && (u.role === 'admin' || (u.role === 'manager' && u.can_upload)); }
 function canSeeContacts(u) { return u && (u.role === 'admin' || u.role === 'appointment_setter'); }
@@ -1564,6 +1673,7 @@ function canDelete(u) { return u && (u.role === 'admin' || u.can_delete === true
 function canDedupe(u) { return u && (u.role === 'admin' || u.can_dedupe === true || u.can_delete === true); }
 function canInvite(u) { return u && u.role === 'admin'; }
 function canViewTeamStats(u) { return u && (u.role === 'admin' || u.can_view_team_stats === true); }
+function canViewComments(u) { return u && (u.role === 'admin' || u.can_view_comments === true); }
 
 // ----- Sort state + helpers -----
 let sortKey = null;   // 'domain' | 'categories' | 'price' | 'status' | 'platform' | 'location' | 'assignee' | 'decider'
@@ -1655,10 +1765,14 @@ function selectAllVisible(on) {
   updateBulkBar();
   maybeShowSelectAllBanner();
 }
-function selectAllFiltered() {
-  _filteredIds.forEach(id => selectedBrandIds.add(id));
+async function selectAllFiltered() {
+  // Lazy fetch all matching IDs from server
+  toast('전체 ID 가져오는 중...');
+  const ids = await loadAllFilteredIds(_currentFilters || {});
+  ids.forEach(id => selectedBrandIds.add(id));
   document.querySelectorAll('input[data-bid]').forEach(cb => { cb.checked = true; });
   document.querySelectorAll('tr[data-bid]').forEach(tr => tr.classList.add('selected'));
+  toast(fmtInt(ids.length) + '개 선택됨');
   updateBulkBar();
   maybeShowSelectAllBanner();
 }
@@ -1677,13 +1791,13 @@ function maybeShowSelectAllBanner() {
   const onPage = document.querySelectorAll('input[data-bid]').length;
   const checkedOnPage = document.querySelectorAll('input[data-bid]:checked').length;
   const allOnPageSelected = onPage > 0 && checkedOnPage === onPage;
-  const moreExist = _filteredIds.length > onPage;
-  const notAllFilteredSelected = selectedBrandIds.size < _filteredIds.length;
+  const moreExist = _currentTotal > onPage;
+  const notAllFilteredSelected = selectedBrandIds.size < _currentTotal;
   const show = allOnPageSelected && moreExist && notAllFilteredSelected;
   banner.classList.toggle('show', show);
   if (show) {
     document.getElementById('sb-page-count').textContent = onPage;
-    document.getElementById('sb-total').textContent = fmtInt(_filteredIds.length);
+    document.getElementById('sb-total').textContent = fmtInt(_currentTotal);
   }
 }
 function updateBulkBar() {
@@ -1957,8 +2071,31 @@ function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-
 const DEFAULT_LOGO_SVG = `<svg viewBox="0 0 230 60" height="26" aria-label="Familink"><g class="logo-letter" font-family="Inter, sans-serif" font-weight="800" font-size="52" letter-spacing="-3"><text x="0" y="46">F</text><text x="36" y="46">M</text><text x="84" y="46">L</text></g><rect class="logo-letter" x="120" y="14" width="9" height="22" rx="1"/><circle class="logo-dot" cx="124.5" cy="46" r="5"/><g class="logo-letter" font-family="Inter, sans-serif" font-weight="800" font-size="52" letter-spacing="-3"><text x="134" y="46">N</text><text x="172" y="46">K</text></g></svg>`;
 const DEFAULT_FAVICON = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d1d1f'/><circle cx='16' cy='22' r='3' fill='%23d93b3b'/><rect x='13.5' y='8' width='5' height='9' rx='1' fill='%23f4f4f5'/></svg>";
 
+// ----- Global app_settings cache (logo, favicon shared across all users) -----
+let _appSettings = {};   // { logo: dataUrl, favicon: dataUrl }
+let _appSettingsLoaded = false;
+
+async function loadAppSettings() {
+  try {
+    const { data, error } = await sb.from('app_settings').select('key, value');
+    if (error) { console.warn('loadAppSettings:', error); return; }
+    _appSettings = {};
+    (data || []).forEach(r => { _appSettings[r.key] = r.value; });
+    _appSettingsLoaded = true;
+  } catch(e) { console.warn(e); }
+}
+async function saveAppSetting(key, value) {
+  _appSettings[key] = value;
+  const { error } = await sb.from('app_settings').upsert({ key, value, updated_at: new Date().toISOString() });
+  if (error) { console.warn('saveAppSetting:', error); throw error; }
+}
+async function deleteAppSetting(key) {
+  delete _appSettings[key];
+  await sb.from('app_settings').delete().eq('key', key);
+}
+
 function getLogoHtml() {
-  const custom = loadRaw(LS.logo, null);
+  const custom = _appSettings.logo || loadRaw(LS.logo, null);
   if (custom) return '<img src="' + escapeAttr(custom) + '" alt="Logo">';
   return DEFAULT_LOGO_SVG;
 }
@@ -1971,12 +2108,39 @@ function applyLogoEverywhere() {
 }
 function applyFavicon() {
   const link = document.getElementById('favicon');
-  link.href = loadRaw(LS.favicon, null) || DEFAULT_FAVICON;
+  const custom = _appSettings.favicon || loadRaw(LS.favicon, null);
+  link.href = custom || DEFAULT_FAVICON;
 }
-function setLogo(dataUrl) { saveRaw(LS.logo, dataUrl); applyLogoEverywhere(); refreshSettingsPreviews(); }
-function resetLogo() { localStorage.removeItem(LS.logo); applyLogoEverywhere(); refreshSettingsPreviews(); toast('로고 초기화됨'); }
-function setFavicon(dataUrl) { saveRaw(LS.favicon, dataUrl); applyFavicon(); refreshSettingsPreviews(); }
-function resetFavicon() { localStorage.removeItem(LS.favicon); applyFavicon(); refreshSettingsPreviews(); toast('파비콘 초기화됨'); }
+async function setLogo(dataUrl) {
+  if (!currentUser || currentUser.role !== 'admin') { toast('admin만 변경 가능'); return; }
+  try {
+    await saveAppSetting('logo', dataUrl);
+    applyLogoEverywhere(); refreshSettingsPreviews();
+    toast('로고가 모든 사용자에게 적용됩니다');
+  } catch(e) { toast('저장 실패: ' + e.message); }
+}
+async function resetLogo() {
+  if (!currentUser || currentUser.role !== 'admin') { toast('admin만 변경 가능'); return; }
+  await deleteAppSetting('logo');
+  localStorage.removeItem(LS.logo);
+  applyLogoEverywhere(); refreshSettingsPreviews();
+  toast('로고 초기화됨');
+}
+async function setFavicon(dataUrl) {
+  if (!currentUser || currentUser.role !== 'admin') { toast('admin만 변경 가능'); return; }
+  try {
+    await saveAppSetting('favicon', dataUrl);
+    applyFavicon(); refreshSettingsPreviews();
+    toast('파비콘이 모든 사용자에게 적용됩니다');
+  } catch(e) { toast('저장 실패: ' + e.message); }
+}
+async function resetFavicon() {
+  if (!currentUser || currentUser.role !== 'admin') { toast('admin만 변경 가능'); return; }
+  await deleteAppSetting('favicon');
+  localStorage.removeItem(LS.favicon);
+  applyFavicon(); refreshSettingsPreviews();
+  toast('파비콘 초기화됨');
+}
 function refreshSettingsPreviews() {
   const lp = document.getElementById('logo-preview'); if (lp) lp.innerHTML = getLogoHtml();
   const fp = document.getElementById('favicon-preview');
@@ -2197,7 +2361,8 @@ async function afterLogin() {
   if (!session) return;
   const ok = await loadCurrentProfile(session.user);
   if (!ok) { showLoginErr('프로필을 찾을 수 없습니다.'); return; }
-  await loadProfiles();
+  await Promise.all([loadProfiles(), loadAppSettings()]);
+  applyLogoEverywhere(); applyFavicon();
   showApp();
 }
 function showApp() {
@@ -2557,37 +2722,28 @@ let expanded = new Set();
 // Maps column key to sort key (some columns are sortable, others not)
 const COL_TO_SORT = { domain: 'domain', categories: 'categories', price: 'price', status: 'status', platform: 'platform', location: 'location', assignee: 'assignee', decider: 'decider' };
 
+// State for current page (server-side rendering)
+let _currentPageBrands = [];
+let _currentTotal = 0;
+let _currentFilters = {};
+
 async function renderBrands() {
-  // Show loading screen if no cache yet (first load)
-  const isFirstLoad = !_brandsCache;
   const loadingEl = document.getElementById('loading-state');
   const tableEl = document.querySelector('#view-brands table.brands');
+  const isFirstLoad = _currentPageBrands.length === 0 && _currentTotal === 0;
   if (isFirstLoad) {
     loadingEl.classList.remove('hidden');
     if (tableEl) tableEl.style.display = 'none';
     document.getElementById('empty').classList.add('hidden');
-    // Reset progress UI
-    const fill = document.getElementById('load-progress-fill');
-    const pctEl = document.getElementById('load-progress-pct');
-    const detailEl = document.getElementById('load-progress-detail');
-    if (fill) fill.style.width = '0%';
-    if (pctEl) pctEl.textContent = '0%';
-    if (detailEl) detailEl.textContent = '';
-    // Trigger fetch with progress callback (cache miss will use it)
-    await dbGetAllBrands({
-      onProgress: (done, total) => {
-        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-        const f = document.getElementById('load-progress-fill');
-        const p = document.getElementById('load-progress-pct');
-        const d = document.getElementById('load-progress-detail');
-        if (f) f.style.width = pct + '%';
-        if (p) p.textContent = pct + '%';
-        if (d) d.textContent = fmtInt(done) + ' / ' + fmtInt(total) + ' 개';
-      }
-    });
+    // Skip the percent gauge — server-side fetch is fast enough for a simple spinner.
+    const f = document.getElementById('load-progress-fill'); if (f) f.style.width = '0%';
+    const p = document.getElementById('load-progress-pct'); if (p) p.textContent = '서버에서 받는 중...';
+    const d = document.getElementById('load-progress-detail'); if (d) d.textContent = '';
+    const stage = document.getElementById('load-progress-bar');
+    if (stage && stage.parentElement) stage.parentElement.style.display = 'none';
   }
 
-  // header columns
+  // Header columns + sort indicators
   const cols = getOrderedColumns().filter(c => c.visible);
   const showSelect = canDelete(currentUser);
   const headerCells = cols.map(c => {
@@ -2602,52 +2758,25 @@ async function renderBrands() {
   const selectHead = showSelect ? '<th class="col-select"><input id="select-all-cb" type="checkbox" onchange="selectAllVisible(this.checked)"></th>' : '';
   document.getElementById('thead-row').innerHTML = selectHead + headerCells;
 
-  const brands = await visibleBrands();
-
-  // Hide loading state, show table
-  loadingEl.classList.add('hidden');
-  if (tableEl) tableEl.style.display = '';
-
-  const total = brands.length;
-  const pending = brands.filter(b => b.review_status === 'pending').length;
-  const approved = brands.filter(b => b.review_status === 'approved').length;
-  const rejected = brands.filter(b => b.review_status === 'rejected').length;
-  const dupes = brands.filter(b => b.pending_update).length;
-  let statsHtml =
-    '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(total) + '</div></div>' +
-    '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(pending) + '</div></div>' +
-    '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(approved) + '</div></div>' +
-    '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(rejected) + '</div></div>';
-  if (dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(dupes) + '</div></div>';
-  if (currentUser.role === 'team') {
-    const me = brands.filter(b => b.assigned_to === currentUser.username).length;
-    statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({assignee:\'' + escapeAttr(currentUser.username) + '\'})"><div class="label">내 할당</div><div class="value">' + fmtInt(me) + '</div></div>';
-  }
-  document.getElementById('stats').innerHTML = statsHtml;
+  // Subtitle
   document.getElementById('brands-subtitle').textContent =
     currentUser.role === 'team' ? '나에게 할당된 브랜드를 검토합니다.' :
     currentUser.role === 'manager' ? '전체 브랜드를 보고 팀에 할당 / 승인할 수 있습니다.' :
     currentUser.role === 'appointment_setter' ? '연락 대상 브랜드와 연락처를 확인합니다.' :
     '전체 브랜드와 사용자/설정을 관리합니다.';
 
-  const countries = Array.from(new Set(brands.map(b => b.country_code).filter(Boolean))).sort();
-  const cSel = document.getElementById('filter-country'); const cCur = cSel.value;
-  cSel.innerHTML = '<option value="">전체 국가</option>' + countries.map(c => '<option value="' + c + '">' + c + '</option>').join('');
-  cSel.value = cCur;
+  // Populate distinct filter dropdowns (once per session) from RPC
+  try {
+    const distinct = await loadDistinctFilters();
+    const cSel = document.getElementById('filter-country'); const cCur = cSel.value;
+    cSel.innerHTML = '<option value="">전체 국가</option>' + distinct.countries.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+    cSel.value = cCur;
+    const catSel = document.getElementById('filter-category'); const catCur = catSel.value;
+    catSel.innerHTML = '<option value="">전체 카테고리</option>' + distinct.categories.map(c => '<option value="' + escapeAttr(c) + '">' + escapeHtml(c) + '</option>').join('');
+    catSel.value = catCur;
+  } catch(e) { console.warn('distinct filters:', e); }
 
-  // Category filter: collect top-level categories across all brands
-  const catSet = new Set();
-  brands.forEach(b => {
-    (b.categories || '').split(':').filter(Boolean).forEach(c => {
-      const top = c.split('/').filter(Boolean)[0];
-      if (top) catSet.add(top);
-    });
-  });
-  const catList = Array.from(catSet).sort();
-  const catSel = document.getElementById('filter-category'); const catCur = catSel.value;
-  catSel.innerHTML = '<option value="">전체 카테고리</option>' + catList.map(c => '<option value="' + escapeAttr(c) + '">' + escapeHtml(c) + '</option>').join('');
-  catSel.value = catCur;
-
+  // Assignee dropdown
   const aSel = document.getElementById('filter-assignee');
   const aCur = aSel.value;
   if (currentUser.role === 'team') aSel.classList.add('hidden');
@@ -2659,56 +2788,74 @@ async function renderBrands() {
     aSel.value = aCur;
   }
 
-  const q = document.getElementById('search').value.toLowerCase().trim();
-  const fs = document.getElementById('filter-status').value;
-  const fc = document.getElementById('filter-country').value;
-  const fcat = document.getElementById('filter-category').value;
-  const fdl = document.getElementById('filter-domlen').value;
-  const fa = aSel.classList.contains('hidden') ? '' : aSel.value;
+  // Build current filter state
+  const filters = {
+    status: document.getElementById('filter-status').value,
+    country: document.getElementById('filter-country').value,
+    category: document.getElementById('filter-category').value,
+    domlen: document.getElementById('filter-domlen').value,
+    assignee: aSel.classList.contains('hidden') ? '' : aSel.value,
+    search: document.getElementById('search').value.trim(),
+  };
+  _currentFilters = filters;
+  const sort = { key: sortKey, dir: sortDir };
 
-  const filtered = brands.filter(b => {
-    if (fs === '__dup') { if (!b.pending_update) return false; }
-    else if (fs && b.review_status !== fs) return false;
-    if (fc && b.country_code !== fc) return false;
-    if (fcat) {
-      const tops = (b.categories || '').split(':').filter(Boolean).map(c => c.split('/').filter(Boolean)[0]);
-      if (!tops.includes(fcat)) return false;
-    }
-    if (fdl === 'long' && (b.domain || '').length < 15) return false;
-    if (fdl === 'short' && (b.domain || '').length >= 15) return false;
-    if (fa === '__unassigned' && b.assigned_to) return false;
-    if (fa && fa !== '__unassigned' && b.assigned_to !== fa) return false;
-    if (q) {
-      const blob = [b.domain, b.categories, b.city, b.company_location, b.state].join(' ').toLowerCase();
-      if (!blob.includes(q)) return false;
-    }
-    return true;
-  });
+  // Fetch page + stats in parallel
+  let pageRes, stats;
+  try {
+    [pageRes, stats] = await Promise.all([
+      loadBrandPage(filters, sort, currentPage),
+      loadBrandStats(filters),
+    ]);
+  } catch(e) {
+    loadingEl.classList.add('hidden');
+    if (tableEl) tableEl.style.display = '';
+    toast('로드 실패: ' + e.message); console.error(e);
+    return;
+  }
 
-  const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
-  const sorted = applySort(filtered, userMap);
-  _filteredIds = sorted.map(b => b.id);
+  _currentPageBrands = pageRes.rows;
+  _currentTotal = pageRes.total;
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  if (currentPage > totalPages) currentPage = totalPages;
+  // Hide loading state, show table
+  loadingEl.classList.add('hidden');
+  if (tableEl) tableEl.style.display = '';
+
+  // Render stat cards (server counts)
+  let statsHtml =
+    '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
+    '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
+    '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
+    '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
+  if (stats.dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
+  if (currentUser.role === 'team') {
+    // For team, "my assignment" = total visible (RLS limits to their assigned)
+    statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({assignee:\'' + escapeAttr(currentUser.username) + '\'})"><div class="label">내 할당</div><div class="value">' + fmtInt(stats.total) + '</div></div>';
+  }
+  document.getElementById('stats').innerHTML = statsHtml;
+
+  // Result count + pagination
   const startIdx = (currentPage - 1) * PAGE_SIZE;
-  const visible = sorted.slice(startIdx, startIdx + PAGE_SIZE);
+  const shown = _currentPageBrands.length;
   document.getElementById('result-count').textContent =
-    sorted.length > PAGE_SIZE
-      ? (fmtInt(startIdx + 1) + '–' + fmtInt(startIdx + visible.length) + ' / 전체 ' + fmtInt(sorted.length) + '개')
-      : (fmtInt(sorted.length) + '개');
-  renderPagination(sorted.length);
+    _currentTotal > PAGE_SIZE
+      ? (fmtInt(startIdx + 1) + '–' + fmtInt(startIdx + shown) + ' / 전체 ' + fmtInt(_currentTotal) + '개')
+      : (fmtInt(_currentTotal) + '개');
+  renderPagination(_currentTotal);
 
+  // Render rows
   const tbody = document.getElementById('brand-tbody');
-  if (!visible.length) {
-    tbody.innerHTML = ''; document.getElementById('empty').classList.remove('hidden');
+  if (!shown) {
+    tbody.innerHTML = '';
+    document.getElementById('empty').classList.remove('hidden');
     updateBulkBar(); syncSelectAll(); maybeShowSelectAllBanner();
     return;
   }
   document.getElementById('empty').classList.add('hidden');
 
+  const userMap = {}; getProfiles().forEach(u => userMap[u.username] = u);
   const colSpan = cols.length + (showSelect ? 1 : 0);
-  tbody.innerHTML = visible.map(b => {
+  tbody.innerHTML = _currentPageBrands.map(b => {
     const isEx = expanded.has(b.id);
     const isSel = selectedBrandIds.has(b.id);
     const selectCell = showSelect ? '<td class="col-select"><input type="checkbox" data-bid="' + b.id + '" ' + (isSel ? 'checked' : '') + ' onchange="toggleSelect(\'' + b.id + '\')"></td>' : '';
@@ -2841,7 +2988,9 @@ function renderDetail(b) {
         '<div class="decision-box">' +
           '<div class="lbl">결정 기록</div>' +
           '<div><b>' + escapeHtml(b.decided_by_name || b.decided_by) + '</b> · ' + statusKor + ' · <span class="muted">' + formatDate(b.decided_at) + '</span></div>' +
-          (b.decision_note ? '<div style="margin-top:6px;color:var(--text-dim)">' + escapeHtml(b.decision_note) + '</div>' : '') +
+          (b.decision_note ? (canViewComments(currentUser)
+            ? '<div style="margin-top:6px;color:var(--text-dim)"><b style="color:var(--text-2);font-weight:600">코멘트:</b> ' + escapeHtml(b.decision_note) + '</div>'
+            : '<div style="margin-top:6px;color:var(--text-faint);font-style:italic">코멘트 있음 — 열람 권한 필요</div>') : '') +
         '</div>'
       ) : '') +
     '</div>'
@@ -2878,10 +3027,11 @@ function toggleExpand(id) {
   const wasExpanded = expanded.has(id);
   if (wasExpanded) expanded.delete(id); else expanded.add(id);
 
-  // Try DOM-only update for speed; fall back to full render if anything is unexpected.
+  // DOM-only update for speed; look in current page first
   const row = document.querySelector('tr[data-bid="' + id + '"]:not(.detail-row)');
-  if (!row || !_brandsCache) { renderBrands(); return; }
-  const brand = _brandsCache.find(b => b.id === id);
+  if (!row) { renderBrands(); return; }
+  let brand = _currentPageBrands && _currentPageBrands.find(b => b.id === id);
+  if (!brand && _brandsCache) brand = _brandsCache.find(b => b.id === id);
   if (!brand) { renderBrands(); return; }
 
   const btn = row.querySelector('.expand-btn');
@@ -3000,11 +3150,10 @@ async function confirmBulkAssign() {
       renderBrands();
       return;
     }
-    // Update cache
-    if (_brandsCache) {
-      const idset = new Set(ids);
-      _brandsCache.forEach(b => { if (idset.has(b.id)) b.assigned_to = user; });
-    }
+    // Update cache(s)
+    const idset = new Set(ids);
+    if (_brandsCache) _brandsCache.forEach(b => { if (idset.has(b.id)) b.assigned_to = user; });
+    if (_currentPageBrands) _currentPageBrands.forEach(b => { if (idset.has(b.id)) b.assigned_to = user; });
     done += slice.length;
     const elapsed = (Date.now() - t0) / 1000;
     const pct = (done / take) * 100;
@@ -3053,14 +3202,17 @@ async function confirmDecision() {
     decision_note: note || null,
     pending_update: null,
   };
+  if (_currentPageBrands) {
+    const idx = _currentPageBrands.findIndex(x => x.id === id);
+    if (idx >= 0) _currentPageBrands[idx] = Object.assign({}, _currentPageBrands[idx], update);
+  }
   if (_brandsCache) {
     const idx = _brandsCache.findIndex(x => x.id === id);
-    if (idx >= 0) {
-      _brandsCache[idx] = Object.assign({}, _brandsCache[idx], update);
-    }
+    if (idx >= 0) _brandsCache[idx] = Object.assign({}, _brandsCache[idx], update);
   }
-  // Inline DOM update for the visible row (avoid full re-render flicker)
   try { updateBrandRowInline(id); } catch(e) { renderBrands(); }
+  // Refresh status counts asynchronously
+  refreshStatsFromCache();
 
   // ===== Background server save (fire-and-forget; revert on error) =====
   sb.from('brands').update(update).eq('id', id).then(({ error }) => {
@@ -3075,19 +3227,23 @@ async function confirmDecision() {
 
 async function undoDecision(id) {
   if (!confirm('결정을 취소하시겠습니까? 상태가 대기중으로 돌아갑니다.')) return;
-  const b = _brandsCache ? _brandsCache.find(x => x.id === id) : await dbGetBrand(id);
+  const b = await dbGetBrand(id);
   if (!b) return;
   if (currentUser.role === 'team' && b.decided_by !== currentUser.username) {
     toast('본인이 결정한 항목만 취소할 수 있습니다'); return;
   }
-  // Optimistic
   toast('결정이 취소되었습니다');
   const update = { review_status: 'pending', decided_by: null, decided_by_name: null, decided_at: null, decision_note: null };
+  if (_currentPageBrands) {
+    const idx = _currentPageBrands.findIndex(x => x.id === id);
+    if (idx >= 0) _currentPageBrands[idx] = Object.assign({}, _currentPageBrands[idx], update);
+  }
   if (_brandsCache) {
     const idx = _brandsCache.findIndex(x => x.id === id);
     if (idx >= 0) _brandsCache[idx] = Object.assign({}, _brandsCache[idx], update);
   }
   try { updateBrandRowInline(id); } catch(e) { renderBrands(); }
+  refreshStatsFromCache();
   sb.from('brands').update(update).eq('id', id).then(({ error }) => {
     if (error) {
       console.error('undo failed:', error);
@@ -3100,8 +3256,8 @@ async function undoDecision(id) {
 
 // Replace one brand row in-place without re-rendering the whole table.
 function updateBrandRowInline(id) {
-  if (!_brandsCache) return;
-  const b = _brandsCache.find(x => x.id === id);
+  let b = _currentPageBrands && _currentPageBrands.find(x => x.id === id);
+  if (!b && _brandsCache) b = _brandsCache.find(x => x.id === id);
   if (!b) return;
   const row = document.querySelector('tr[data-bid="' + id + '"]:not(.detail-row)');
   if (!row) return;
@@ -3124,39 +3280,22 @@ function updateBrandRowInline(id) {
   refreshStatsFromCache();
 }
 
-// Recompute and refresh the top stat cards from cache (used after optimistic update).
-function refreshStatsFromCache() {
-  if (!_brandsCache) return;
-  // Apply role-based visibility
-  let brands;
-  if (currentUser.role === 'admin' || currentUser.role === 'manager') brands = _brandsCache;
-  else if (currentUser.role === 'appointment_setter') {
-    const vs = currentUser.visible_statuses || ['approved'];
-    brands = _brandsCache.filter(b => vs.length === 0 || vs.includes(b.review_status));
-  } else {
-    const vs = currentUser.visible_statuses || [];
-    brands = _brandsCache.filter(b => {
-      if (b.assigned_to !== currentUser.username) return false;
-      if (vs.length && !vs.includes(b.review_status)) return false;
-      return true;
-    });
-  }
-  const total = brands.length;
-  const pending = brands.filter(b => b.review_status === 'pending').length;
-  const approved = brands.filter(b => b.review_status === 'approved').length;
-  const rejected = brands.filter(b => b.review_status === 'rejected').length;
-  const dupes = brands.filter(b => b.pending_update).length;
-  let statsHtml =
-    '<div class="stat-card"><div class="label">전체</div><div class="value">' + fmtInt(total) + '</div></div>' +
-    '<div class="stat-card pending"><div class="label">대기중</div><div class="value">' + fmtInt(pending) + '</div></div>' +
-    '<div class="stat-card approved"><div class="label">승인</div><div class="value">' + fmtInt(approved) + '</div></div>' +
-    '<div class="stat-card rejected"><div class="label">반려</div><div class="value">' + fmtInt(rejected) + '</div></div>';
-  if (dupes) statsHtml += '<div class="stat-card"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(dupes) + '</div></div>';
-  if (currentUser.role === 'team') {
-    const me = brands.filter(b => b.assigned_to === currentUser.username).length;
-    statsHtml += '<div class="stat-card"><div class="label">내 할당</div><div class="value">' + fmtInt(me) + '</div></div>';
-  }
-  const el = document.getElementById('stats'); if (el) el.innerHTML = statsHtml;
+// Refresh top stat cards via 5 parallel server HEAD count queries.
+// Called after optimistic update so totals reflect the change quickly.
+async function refreshStatsFromCache() {
+  try {
+    const stats = await loadBrandStats(_currentFilters || {});
+    let html =
+      '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
+      '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
+      '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
+      '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
+    if (stats.dupes) html += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
+    if (currentUser.role === 'team') {
+      html += '<div class="stat-card clickable" onclick="navToFilteredBrands({assignee:\'' + escapeAttr(currentUser.username) + '\'})"><div class="label">내 할당</div><div class="value">' + fmtInt(stats.total) + '</div></div>';
+    }
+    const el = document.getElementById('stats'); if (el) el.innerHTML = html;
+  } catch(e) { console.warn('refreshStats:', e); }
 }
 
 // =====================================================
@@ -3175,6 +3314,8 @@ function renderUsers() {
       : ('<label class="switch"><input type="checkbox" ' + (u.can_dedupe ? 'checked' : '') + ' onchange="toggleDedupePerm(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
     const teamStatsCell = u.role === 'admin' ? '<span class="muted">항상</span>'
       : ('<label class="switch"><input type="checkbox" ' + (u.can_view_team_stats ? 'checked' : '') + ' onchange="toggleTeamStatsPerm(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
+    const commentsCell = u.role === 'admin' ? '<span class="muted">항상</span>'
+      : ('<label class="switch"><input type="checkbox" ' + (u.can_view_comments ? 'checked' : '') + ' onchange="toggleCommentsPerm(\'' + escapeAttr(u.username) + '\', this.checked)"><span class="slider"></span></label>');
     let statusCell;
     if (u.role !== 'team' && u.role !== 'appointment_setter') statusCell = '<span class="muted">전체</span>';
     else {
@@ -3191,6 +3332,7 @@ function renderUsers() {
       '<td>' + deleteCell + '</td>' +
       '<td>' + dedupeCell + '</td>' +
       '<td>' + teamStatsCell + '</td>' +
+      '<td>' + commentsCell + '</td>' +
       '<td>' + statusCell + '</td>' +
       '<td style="text-align:right">' +
         '<button class="btn btn-xs" onclick="editUser(\'' + escapeAttr(u.username) + '\')">편집</button> ' +
@@ -3226,6 +3368,15 @@ async function toggleTeamStatsPerm(username, val) {
   u.can_view_team_stats = val;
   if (currentUser.username === username) currentUser.can_view_team_stats = val;
   toast(val ? '팀 통계 권한 부여' : '팀 통계 권한 해제');
+}
+async function toggleCommentsPerm(username, val) {
+  const u = getProfiles().find(x => x.username === username);
+  if (!u) return;
+  const { error } = await sb.from('profiles').update({ can_view_comments: val }).eq('id', u.id);
+  if (error) { toast('업데이트 실패: ' + error.message); return; }
+  u.can_view_comments = val;
+  if (currentUser.username === username) currentUser.can_view_comments = val;
+  toast(val ? '코멘트 열람 권한 부여' : '코멘트 열람 권한 해제');
 }
 async function toggleUpload(username, val) {
   const u = getProfiles().find(x => x.username === username);
@@ -3276,6 +3427,7 @@ function openUserModal() {
   document.getElementById('inv-can-delete').checked = false;
   document.getElementById('inv-can-dedupe').checked = false;
   document.getElementById('inv-can-team-stats').checked = false;
+  document.getElementById('inv-can-comments').checked = false;
   document.querySelectorAll('#inv-statuses .status-chip').forEach(el => el.classList.add('active'));
   generateInvitePw();
   onInviteRoleChange();
@@ -3291,6 +3443,7 @@ async function submitInvite() {
   const can_delete = document.getElementById('inv-can-delete').checked;
   const can_dedupe = document.getElementById('inv-can-dedupe').checked;
   const can_view_team_stats = document.getElementById('inv-can-team-stats').checked;
+  const can_view_comments = document.getElementById('inv-can-comments').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#inv-statuses .status-chip.active')).map(el => el.dataset.status);
   const res = document.getElementById('inv-result');
   if (!email || !password) { res.className = 'upload-result error show'; res.textContent = '이메일/비밀번호 필수'; return; }
@@ -3299,7 +3452,7 @@ async function submitInvite() {
   res.className = 'upload-result show'; res.textContent = '계정 생성 중...';
   try {
     const { data, error } = await sb.functions.invoke('invite-user', {
-      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, can_dedupe, can_view_team_stats, visible_statuses }
+      body: { email, password, name, username: email.split('@')[0], role, can_upload, can_delete, can_dedupe, can_view_team_stats, can_view_comments, visible_statuses }
     });
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);
@@ -3331,6 +3484,7 @@ function editUser(username) {
   document.getElementById('u-can-delete').checked = !!u.can_delete;
   document.getElementById('u-can-dedupe').checked = !!u.can_dedupe;
   document.getElementById('u-can-team-stats').checked = !!u.can_view_team_stats;
+  document.getElementById('u-can-comments').checked = !!u.can_view_comments;
   const vs = new Set(u.visible_statuses || []);
   document.querySelectorAll('#u-statuses .status-chip').forEach(el => el.classList.toggle('active', vs.has(el.dataset.status)));
   onRoleChange();
@@ -3345,6 +3499,7 @@ async function saveUser() {
   const can_delete = document.getElementById('u-can-delete').checked;
   const can_dedupe = document.getElementById('u-can-dedupe').checked;
   const can_view_team_stats = document.getElementById('u-can-team-stats').checked;
+  const can_view_comments = document.getElementById('u-can-comments').checked;
   const visible_statuses = Array.from(document.querySelectorAll('#u-statuses .status-chip.active')).map(el => el.dataset.status);
   if (!name || !username) { alert('이름과 아이디를 입력해주세요'); return; }
   const update = {
@@ -3353,6 +3508,7 @@ async function saveUser() {
     can_delete,
     can_dedupe,
     can_view_team_stats,
+    can_view_comments,
     visible_statuses: (role === 'team' || role === 'appointment_setter') ? visible_statuses : []
   };
   const { error } = await sb.from('profiles').update(update).eq('id', editingUser);
@@ -3789,11 +3945,10 @@ function buildBuckets(now, period) {
 }
 
 async function renderDashboard() {
-  const all = await dbGetAllBrands();
   const now = Date.now();
   const buckets = buildBuckets(now, dashPeriod);
 
-  // Populate user filter (admin/manager only)
+  // Populate user filter
   const sel = document.getElementById('dash-user-filter');
   if (currentUser.role === 'admin' || currentUser.role === 'manager') {
     sel.classList.remove('hidden');
@@ -3805,35 +3960,36 @@ async function renderDashboard() {
     dashUser = cur;
   } else {
     sel.classList.add('hidden');
-    dashUser = currentUser.username; // team sees own only
+    dashUser = currentUser.username;
   }
 
-  // Filter source data by user (if set)
-  const filteredForDecisions = dashUser ? all.filter(b => b.decided_by === dashUser) : all.filter(b => b.decided_by);
-  const filteredForUploads = dashUser ? all.filter(b => b.uploaded_by === dashUser) : all;
+  // Call server-side aggregate RPCs in parallel
+  const bucketCount = buckets.length;
+  let decRows = [], uplRows = [];
+  try {
+    const [decRes, uplRes] = await Promise.all([
+      sb.rpc('decision_buckets', { p_period: dashPeriod, p_count: bucketCount, p_user: dashUser || null }),
+      sb.rpc('upload_buckets', { p_period: dashPeriod, p_count: bucketCount, p_user: dashUser || null }),
+    ]);
+    decRows = decRes.data || [];
+    uplRows = uplRes.data || [];
+  } catch(e) { console.warn('dashboard RPCs:', e); }
 
-  // Helper: normalize timestamp to ms (Supabase returns ISO string; cache also stores ISO).
-  const toMs = v => {
-    if (v == null) return 0;
-    if (typeof v === 'number') return v;
-    const t = Date.parse(v);
-    return Number.isFinite(t) ? t : 0;
-  };
-
-  // Fill buckets
-  filteredForDecisions.forEach(b => {
-    const t = toMs(b.decided_at); if (!t) return;
+  // Match server rows to client buckets by start time
+  const toMs = v => typeof v === 'number' ? v : (Date.parse(v) || 0);
+  buckets.forEach(b => { b.approved = 0; b.rejected = 0; b.uploaded = 0; });
+  decRows.forEach(r => {
+    const t = toMs(r.bucket_start);
     const bk = buckets.find(x => t >= x.start && t < x.end);
     if (!bk) return;
-    bk[b.review_status] = (bk[b.review_status] || 0) + 1;
+    bk[r.status] = Number(r.cnt) || 0;
   });
-  filteredForUploads.forEach(b => {
-    const t = toMs(b.uploaded_at); if (!t) return;
+  uplRows.forEach(r => {
+    const t = toMs(r.bucket_start);
     const bk = buckets.find(x => t >= x.start && t < x.end);
     if (!bk) return;
-    bk.uploaded = (bk.uploaded || 0) + 1;
+    bk.uploaded = Number(r.cnt) || 0;
   });
-  buckets.forEach(b => { b.approved = b.approved || 0; b.rejected = b.rejected || 0; b.uploaded = b.uploaded || 0; });
 
   // Period totals
   const tot = buckets.reduce((acc, b) => ({ u: acc.u + b.uploaded, a: acc.a + b.approved, r: acc.r + b.rejected }), { u: 0, a: 0, r: 0 });
@@ -3877,7 +4033,7 @@ async function renderDashboard() {
   const panel = document.getElementById('dash-userpanel');
   if (currentUser.role === 'admin' || currentUser.role === 'manager') {
     panel.classList.remove('hidden');
-    renderUserBreakdown(all, buckets[0].start, buckets[buckets.length - 1].end);
+    renderUserBreakdownRPC(dashPeriod, bucketCount);
   } else {
     panel.classList.add('hidden');
   }
@@ -3886,10 +4042,104 @@ async function renderDashboard() {
   const teamPanel = document.getElementById('dash-team-panel');
   if (canViewTeamStats(currentUser)) {
     teamPanel.classList.remove('hidden');
-    renderTeamAssignmentPanel(all);
+    renderTeamAssignmentPanelRPC();
   } else {
     teamPanel.classList.add('hidden');
   }
+}
+
+async function renderTeamAssignmentPanelRPC() {
+  const tbody = document.getElementById('dash-team-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="padding:14px;text-align:center;color:var(--text-dim)">로드 중...</td></tr>';
+  const { data, error } = await sb.rpc('assignment_stats');
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:14px;text-align:center;color:var(--danger)">로드 실패: ' + escapeHtml(error.message) + '</td></tr>';
+    return;
+  }
+  // Aggregate per user
+  const stats = {};
+  const profs = getProfiles();
+  profs.forEach(u => { if (u.role !== 'appointment_setter') stats[u.username] = { name: u.name, role: u.role, total: 0, pending: 0, approved: 0, rejected: 0 }; });
+  (data || []).forEach(r => {
+    if (!stats[r.username]) stats[r.username] = { name: r.username, role: '—', total: 0, pending: 0, approved: 0, rejected: 0 };
+    const n = Number(r.cnt) || 0;
+    stats[r.username].total += n;
+    if (r.review_status === 'pending') stats[r.username].pending += n;
+    else if (r.review_status === 'approved') stats[r.username].approved += n;
+    else if (r.review_status === 'rejected') stats[r.username].rejected += n;
+  });
+  const rows = Object.entries(stats)
+    .map(([uname, s]) => {
+      const done = s.approved + s.rejected;
+      const rate = s.total ? Math.round(done * 100 / s.total) : 0;
+      return Object.assign({ uname, done, rate }, s);
+    })
+    .sort((a, b) => b.total - a.total);
+  if (!rows.length || rows.every(r => r.total === 0)) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text-dim)">팀원에게 할당된 브랜드가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const navAll = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "'})";
+    const navPending = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'pending'})";
+    const navApproved = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'approved'})";
+    const navRejected = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'rejected'})";
+    return '<tr>' +
+      '<td><b>' + escapeHtml(r.name) + '</b><div class="muted">@' + escapeHtml(r.uname) + '</div></td>' +
+      '<td><span class="role-badge role-' + r.role + '">' + (r.role === 'appointment_setter' ? 'APPT' : r.role) + '</span></td>' +
+      '<td class="tap-cell" onclick="' + navAll + '" style="text-align:right;font-weight:700;font-feature-settings:\'tnum\';font-size:14px;" title="할당된 브랜드 보기">' + fmtInt(r.total) + '</td>' +
+      '<td class="tap-cell" onclick="' + navPending + '" style="text-align:right;color:var(--warning);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.pending) + '</td>' +
+      '<td class="tap-cell" onclick="' + navApproved + '" style="text-align:right;color:var(--success);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.approved) + '</td>' +
+      '<td class="tap-cell" onclick="' + navRejected + '" style="text-align:right;color:var(--danger);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.rejected) + '</td>' +
+      '<td style="min-width:140px"><div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="flex:1;height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + r.rate + '%;background:linear-gradient(90deg,var(--accent),#7984e8);transition:width .3s"></div></div>' +
+        '<span style="font-weight:700;font-size:12px;font-feature-settings:\'tnum\';min-width:40px;text-align:right">' + r.rate + '%</span>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function renderUserBreakdownRPC(period, count) {
+  const tbody = document.getElementById('dash-user-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="padding:14px;text-align:center;color:var(--text-dim)">로드 중...</td></tr>';
+  const { data, error } = await sb.rpc('user_activity_stats', { p_period: period, p_count: count });
+  if (error) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:14px;text-align:center;color:var(--danger)">로드 실패: ' + escapeHtml(error.message) + '</td></tr>';
+    return;
+  }
+  const users = getProfiles();
+  const userMap = {}; users.forEach(u => userMap[u.username] = u);
+  const rows = (data || []).map(r => {
+    const total = Number(r.approved) + Number(r.rejected);
+    const role = userMap[r.username] ? userMap[r.username].role : '—';
+    const rate = total ? Math.round(Number(r.approved) * 100 / total) : 0;
+    return {
+      uname: r.username,
+      name: userMap[r.username] ? userMap[r.username].name : r.username,
+      role,
+      uploaded: Number(r.uploaded),
+      approved: Number(r.approved),
+      rejected: Number(r.rejected),
+      total, rate
+    };
+  }).sort((a, b) => (b.total + b.uploaded) - (a.total + a.uploaded));
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:28px;">기록이 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => (
+    '<tr>' +
+      '<td><b>' + escapeHtml(r.name) + '</b><div class="muted">@' + escapeHtml(r.uname) + '</div></td>' +
+      '<td><span class="role-badge role-' + r.role + '">' + (r.role === 'appointment_setter' ? 'APPT' : r.role) + '</span></td>' +
+      '<td style="text-align:right;color:var(--accent);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.uploaded) + '</td>' +
+      '<td style="text-align:right;color:var(--success);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.approved) + '</td>' +
+      '<td style="text-align:right;color:var(--danger);font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.rejected) + '</td>' +
+      '<td style="text-align:right;font-weight:600;font-feature-settings:\'tnum\';">' + fmtInt(r.total) + '</td>' +
+      '<td><span style="font-feature-settings:\'tnum\';font-weight:600;">' + r.rate + '%</span></td>' +
+    '</tr>'
+  )).join('');
 }
 
 function renderTeamAssignmentPanel(allBrands) {
@@ -4069,8 +4319,12 @@ document.getElementById('favicon-file').addEventListener('change', async e => { 
   });
 
   if (await restoreSession()) {
-    await loadProfiles();
+    await Promise.all([loadProfiles(), loadAppSettings()]);
+    applyLogoEverywhere(); applyFavicon();
     showApp();
+  } else {
+    // Even without login, try to load public app_settings so the login screen shows the right logo
+    try { await loadAppSettings(); applyLogoEverywhere(); applyFavicon(); } catch(e) {}
   }
 })();
 </script>
