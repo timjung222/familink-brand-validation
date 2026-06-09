@@ -266,14 +266,12 @@
   .app { display: none; min-height: 100vh; }
   .app.active { display: block; }
   .topbar {
-    background: rgba(255,255,255,0.7);
-    backdrop-filter: blur(12px);
+    background: var(--panel);
     border-bottom: 1px solid var(--border);
     padding: 0 22px; height: 56px;
     display: flex; align-items: center; justify-content: space-between;
     position: sticky; top: 0; z-index: 50;
   }
-  html[data-theme="dark"] .topbar { background: rgba(20,22,26,0.7); }
   .topbar-left { display: flex; align-items: center; gap: 22px; height: 100%; }
   .logo-wrap { display: flex; align-items: center; height: 40px; max-width: 220px; cursor: pointer; padding: 2px 4px; border-radius: 6px; transition: background .12s; }
   .logo-wrap:hover { background: var(--panel-2); }
@@ -368,11 +366,20 @@
   table.brands td {
     padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle;
   }
-  table.brands tbody tr { transition: background .1s; }
+  table.brands tbody tr { transition: background .1s; contain: layout paint; }
   table.brands tbody tr:hover { background: var(--panel-2); }
   table.brands tbody tr:last-child td { border-bottom: none; }
   table.brands tbody tr.expanded { background: var(--panel-2); }
   table.brands tbody tr.expanded td { border-bottom-color: transparent; }
+  /* Skip painting off-screen rows for big tables (huge scroll perf win) */
+  table.brands tbody tr:not(.detail-row) {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 48px;
+  }
+  table.brands tbody tr.detail-row {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 320px;
+  }
 
   .domain-cell { font-weight: 600; color: var(--text); }
   .domain-cell a { color: var(--text); text-decoration: none; }
@@ -828,8 +835,9 @@
 </head>
 <body>
 
-<!-- Background shapes removed — using static gradient only -->
-<div class="bg-shapes hidden" aria-hidden="true">
+<!-- Background shapes fully removed (perf). Block kept commented for reference. -->
+<!--bgshapes-start--><script type="text/x-removed">
+<div class="bg-shapes-removed" style="display:none" aria-hidden="true">
   <!-- Outlined rings -->
   <div class="bg-ring"         style="--x:6%;--y:10%;width:46px;height:46px;--dur:32s;--d:0s;--dx:80px;--dy:-50px;--dx2:-40px;--dy2:60px;--dx3:30px;--dy3:-20px;--r1:120deg;--r2:-80deg;--r3:200deg;--op:0.32"></div>
   <div class="bg-ring danger"  style="--x:74%;--y:8%;width:34px;height:34px;--dur:28s;--d:-3s;--dx:-60px;--dy:70px;--dx2:50px;--dy2:-30px;--op:0.30"></div>
@@ -901,6 +909,7 @@
   <div class="bg-glow"        style="--x:15%;--y:38%;width:100px;height:100px;--dur:46s;--d:0s;--dx:80px;--dy:-40px;--op:0.18"></div>
   <div class="bg-glow danger" style="--x:78%;--y:78%;width:90px;height:90px;--dur:44s;--d:-8s;--dx:-60px;--dy:-40px;--op:0.15"></div>
 </div>
+</script><!--bgshapes-end-->
 
 <!-- LOGIN -->
 <div id="login" class="login-wrap">
@@ -3289,9 +3298,14 @@ function updateBrandRowInline(id) {
   refreshStatsFromCache();
 }
 
-// Refresh top stat cards via 5 parallel server HEAD count queries.
-// Called after optimistic update so totals reflect the change quickly.
-async function refreshStatsFromCache() {
+// Debounced wrapper — rapid optimistic updates won't trigger 5 head queries per click.
+let _statsRefreshTimer = null;
+function refreshStatsFromCache() {
+  clearTimeout(_statsRefreshTimer);
+  _statsRefreshTimer = setTimeout(() => _refreshStatsNow(), 600);
+}
+// Actual refresh: 5 parallel server HEAD count queries.
+async function _refreshStatsNow() {
   try {
     const stats = await loadBrandStats(_currentFilters || {});
     let html =
