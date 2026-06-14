@@ -366,6 +366,10 @@
   table.brands td {
     padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle;
   }
+  /* Center-align all body cells except domain & categories (which read better left-aligned) */
+  table.brands td[data-col-key]:not([data-col-key="domain"]):not([data-col-key="categories"]) {
+    text-align: center;
+  }
   table.brands tbody tr { transition: background .1s; contain: layout paint; }
   table.brands tbody tr:hover { background: var(--panel-2); }
   table.brands tbody tr:last-child td { border-bottom: none; }
@@ -412,7 +416,7 @@
   .status-rejected { background: var(--danger-soft); color: var(--danger); }
   .status-rejected::before { background: var(--danger); }
 
-  .actions { display: flex; gap: 4px; flex-wrap: nowrap; justify-content: flex-end; }
+  .actions { display: flex; gap: 4px; flex-wrap: nowrap; justify-content: center; }
   .expand-btn {
     background: transparent; border: 1px solid transparent; color: var(--text-faint);
     padding: 3px 6px; font-size: 11px; border-radius: 4px; cursor: pointer;
@@ -3079,10 +3083,10 @@ async function renderBrands() {
 function renderCell(key, b, userMap, isEx) {
   switch(key) {
     case 'expand':
-      return '<td><button class="expand-btn" onclick="toggleExpand(\'' + b.id + '\')">' + (isEx ? '▾' : '▸') + '</button></td>';
+      return '<td data-col-key="expand"><button class="expand-btn" onclick="toggleExpand(\'' + b.id + '\')">' + (isEx ? '▾' : '▸') + '</button></td>';
     case 'domain': {
       const dup = b.pending_update ? '<span class="dup-badge">중복 업데이트</span>' : '';
-      return '<td class="domain-cell">' +
+      return '<td data-col-key="domain" class="domain-cell">' +
         '<a href="' + escapeAttr(b.domain_url || ('https://' + b.domain)) + '" target="_blank" rel="noopener">' + escapeHtml(b.domain) + '</a>' +
         '<div class="domain-meta"><span class="muted">' + escapeHtml(b.company_location || '') + '</span> ' + dup + '</div>' +
       '</td>';
@@ -3090,26 +3094,26 @@ function renderCell(key, b, userMap, isEx) {
     case 'categories': {
       const cats = (b.categories || '').split(':').filter(Boolean).slice(0, 2)
         .map(c => '<span class="cat-tag">' + escapeHtml(c.split('/').pop()) + '</span>').join('');
-      return '<td>' + (cats || '<span class="muted">—</span>') + '</td>';
+      return '<td data-col-key="categories">' + (cats || '<span class="muted">—</span>') + '</td>';
     }
     case 'location':
-      return '<td>' + escapeHtml(b.city || '') + ' <span class="muted">' + escapeHtml(b.country_code || '') + '</span></td>';
+      return '<td data-col-key="location">' + escapeHtml(b.city || '') + ' <span class="muted">' + escapeHtml(b.country_code || '') + '</span></td>';
     case 'price':
-      return '<td>' + escapeHtml(b.average_product_price_usd || '—') + '</td>';
+      return '<td data-col-key="price">' + escapeHtml(b.average_product_price_usd || '—') + '</td>';
     case 'platform':
-      return '<td>' + escapeHtml(b.plan || b.platform || '—') + '</td>';
+      return '<td data-col-key="platform">' + escapeHtml(b.plan || b.platform || '—') + '</td>';
     case 'status': {
       const label = { pending: '대기중', approved: '승인', rejected: '반려' }[b.review_status] || b.review_status;
-      return '<td><span class="status-badge status-' + b.review_status + '">' + label + '</span></td>';
+      return '<td data-col-key="status"><span class="status-badge status-' + b.review_status + '">' + label + '</span></td>';
     }
     case 'assignee':
-      return '<td>' + (b.assigned_to ? escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) : '<span class="muted">미할당</span>') + '</td>';
+      return '<td data-col-key="assignee">' + (b.assigned_to ? escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) : '<span class="muted">미할당</span>') + '</td>';
     case 'decider':
-      return '<td>' + (b.decided_by ?
+      return '<td data-col-key="decider">' + (b.decided_by ?
         ('<div>' + escapeHtml(b.decided_by_name || (userMap[b.decided_by] && userMap[b.decided_by].name) || b.decided_by) + '</div><div class="muted">' + formatDate(b.decided_at) + '</div>')
         : '<span class="muted">—</span>') + '</td>';
     case 'actions':
-      return '<td><div class="actions">' + renderActions(b) + '</div></td>';
+      return '<td data-col-key="actions"><div class="actions">' + renderActions(b) + '</div></td>';
   }
   return '<td></td>';
 }
