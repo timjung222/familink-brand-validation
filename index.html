@@ -695,6 +695,18 @@
   th.sortable .sort-ind { display: inline-block; margin-left: 4px; opacity: 0.4; font-size: 10px; }
   th.sortable.sort-active .sort-ind { opacity: 1; color: var(--accent); }
 
+  /* Draggable column headers */
+  table.brands th[data-col-key]:not([data-locked]) { cursor: grab; position: relative; }
+  table.brands th[data-col-key]:not([data-locked]):hover { background: var(--panel-3, var(--panel-2)); }
+  table.brands th[data-col-key]:not([data-locked])::before {
+    content: '⋮⋮'; display: inline-block; margin-right: 6px; opacity: 0.25; font-size: 10px;
+    letter-spacing: -2px; transform: translateY(-1px); transition: opacity .15s;
+  }
+  table.brands th[data-col-key]:not([data-locked]):hover::before { opacity: 0.7; }
+  table.brands th.col-dragging { opacity: 0.4; cursor: grabbing !important; }
+  table.brands th.col-drag-over-left { box-shadow: inset 3px 0 0 0 var(--accent); }
+  table.brands th.col-drag-over-right { box-shadow: inset -3px 0 0 0 var(--accent); }
+
   /* Row checkbox / selection */
   table.brands tr.selected { background: var(--accent-soft) !important; }
   table.brands tr.selected:hover { background: var(--accent-soft) !important; }
@@ -2246,12 +2258,25 @@ const ALL_COLUMNS = [
 const DEFAULT_VISIBLE = ['expand','domain','categories','price','status','assignee','decider','actions'];
 const DEFAULT_ORDER = ['expand','domain','categories','price','status','assignee','decider','actions','location','platform'];
 
+function columnsLSKey() {
+  // Per-user namespace so each teammate keeps their own ordering on this device
+  const uid = (currentUser && (currentUser.id || currentUser.username)) || 'anon';
+  return LS.columns + ':' + uid;
+}
 function loadColumns() {
-  const saved = load(LS.columns, null);
+  // Try user-specific first, then fall back to legacy global key (one-time migration)
+  let saved = load(columnsLSKey(), null);
+  if (!saved) {
+    const legacy = load(LS.columns, null);
+    if (legacy && legacy.order && legacy.visible) {
+      saved = legacy;
+      save(columnsLSKey(), saved);
+    }
+  }
   if (saved && saved.order && saved.visible) return saved;
   return { order: DEFAULT_ORDER.slice(), visible: DEFAULT_VISIBLE.slice() };
 }
-function saveColumns(cfg) { save(LS.columns, cfg); }
+function saveColumns(cfg) { save(columnsLSKey(), cfg); }
 function getOrderedColumns() {
   const cfg = loadColumns();
   // ensure locked positions
@@ -2288,7 +2313,28 @@ function toggleColumnVisible(key, on) {
   renderColumnsModal();
   renderBrands();
 }
-function resetColumns() { localStorage.removeItem(LS.columns); renderColumnsModal(); renderBrands(); toast('컬럼 초기화됨'); }
+function resetColumns() { localStorage.removeItem(columnsLSKey()); renderColumnsModal(); renderBrands(); toast('컬럼 초기화됨'); }
+// Reorder a column by moving `key` to be before `targetKey` (or after if `after=true`)
+function reorderColumn(key, targetKey, after) {
+  if (key === targetKey) return;
+  const cfg = loadColumns();
+  const order = cfg.order.slice();
+  // Ensure all known cols are present
+  ALL_COLUMNS.forEach(c => { if (!order.includes(c.key)) order.push(c.key); });
+  const meta = ALL_COLUMNS.find(c => c.key === key);
+  const tmeta = ALL_COLUMNS.find(c => c.key === targetKey);
+  if (!meta || !tmeta || meta.locked || tmeta.locked) return;
+  const from = order.indexOf(key);
+  if (from < 0) return;
+  order.splice(from, 1);
+  let to = order.indexOf(targetKey);
+  if (to < 0) return;
+  if (after) to += 1;
+  order.splice(to, 0, key);
+  cfg.order = order;
+  saveColumns(cfg);
+  renderBrands();
+}
 function openColumnsModal() { renderColumnsModal(); document.getElementById('modal-columns').classList.add('active'); }
 function renderColumnsModal() {
   const cols = getOrderedColumns();
@@ -2745,6 +2791,74 @@ let _currentPageBrands = [];
 let _currentTotal = 0;
 let _currentFilters = {};
 
+// Track whether the most recent pointer interaction on a header was a drag (so click->sort is skipped)
+let _headerDragDidMove = false;
+function onHeaderClick(ev, sortKey) {
+  if (_headerDragDidMove) { _headerDragDidMove = false; return; }
+  setSort(sortKey);
+}
+
+// Wire up drag-and-drop on the current thead row (called after each header render)
+function setupHeaderDnD() {
+  const row = document.getElementById('thead-row');
+  if (!row || row._dndWired) return;
+  row._dndWired = true;
+  let draggedKey = null;
+  let lastOverEl = null;
+  function clearOverStyles() {
+    if (lastOverEl) {
+      lastOverEl.classList.remove('col-drag-over-left', 'col-drag-over-right');
+      lastOverEl = null;
+    }
+  }
+  row.addEventListener('dragstart', e => {
+    const th = e.target.closest('th[data-col-key]');
+    if (!th || th.hasAttribute('data-locked')) { e.preventDefault(); return; }
+    draggedKey = th.getAttribute('data-col-key');
+    _headerDragDidMove = true;
+    th.classList.add('col-dragging');
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', draggedKey); } catch(_) {}
+  });
+  row.addEventListener('dragend', e => {
+    const th = e.target.closest('th[data-col-key]');
+    if (th) th.classList.remove('col-dragging');
+    clearOverStyles();
+    draggedKey = null;
+    // Reset the suppression flag a tick later so a real click that follows still works
+    setTimeout(() => { _headerDragDidMove = false; }, 50);
+  });
+  row.addEventListener('dragover', e => {
+    if (!draggedKey) return;
+    const th = e.target.closest('th[data-col-key]');
+    if (!th || th.hasAttribute('data-locked')) { clearOverStyles(); return; }
+    const targetKey = th.getAttribute('data-col-key');
+    if (targetKey === draggedKey) { clearOverStyles(); return; }
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch(_) {}
+    const rect = th.getBoundingClientRect();
+    const after = (e.clientX - rect.left) > rect.width / 2;
+    if (lastOverEl && lastOverEl !== th) clearOverStyles();
+    lastOverEl = th;
+    th.classList.toggle('col-drag-over-left', !after);
+    th.classList.toggle('col-drag-over-right', after);
+  });
+  row.addEventListener('dragleave', e => {
+    const th = e.target.closest('th[data-col-key]');
+    if (th) th.classList.remove('col-drag-over-left', 'col-drag-over-right');
+  });
+  row.addEventListener('drop', e => {
+    if (!draggedKey) return;
+    const th = e.target.closest('th[data-col-key]');
+    if (!th || th.hasAttribute('data-locked')) return;
+    e.preventDefault();
+    const targetKey = th.getAttribute('data-col-key');
+    const rect = th.getBoundingClientRect();
+    const after = (e.clientX - rect.left) > rect.width / 2;
+    clearOverStyles();
+    if (targetKey !== draggedKey) reorderColumn(draggedKey, targetKey, after);
+  });
+}
+
 async function renderBrands() {
   const loadingEl = document.getElementById('loading-state');
   const tableEl = document.querySelector('#view-brands table.brands');
@@ -2765,16 +2879,18 @@ async function renderBrands() {
   const cols = getOrderedColumns().filter(c => c.visible);
   const showSelect = canDelete(currentUser);
   const headerCells = cols.map(c => {
-    if (c.key === 'expand') return '<th style="width:30px"></th>';
-    if (c.key === 'actions') return '<th style="text-align:right">' + c.label + '</th>';
+    if (c.key === 'expand') return '<th data-col-key="expand" data-locked="1" style="width:30px"></th>';
+    if (c.key === 'actions') return '<th data-col-key="actions" data-locked="1" style="text-align:right">' + c.label + '</th>';
     const sk = COL_TO_SORT[c.key];
-    if (!sk) return '<th>' + escapeHtml(c.label) + '</th>';
+    const dragAttrs = ' data-col-key="' + c.key + '" draggable="true"';
+    if (!sk) return '<th' + dragAttrs + '>' + escapeHtml(c.label) + '</th>';
     const active = sortKey === sk;
     const arrow = active ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
-    return '<th class="sortable' + (active ? ' sort-active' : '') + '" onclick="setSort(\'' + sk + '\')">' + escapeHtml(c.label) + ' <span class="sort-ind">' + arrow + '</span></th>';
+    return '<th class="sortable' + (active ? ' sort-active' : '') + '"' + dragAttrs + ' onclick="onHeaderClick(event, \'' + sk + '\')">' + escapeHtml(c.label) + ' <span class="sort-ind">' + arrow + '</span></th>';
   }).join('');
   const selectHead = showSelect ? '<th class="col-select"><input id="select-all-cb" type="checkbox" onchange="selectAllVisible(this.checked)"></th>' : '';
   document.getElementById('thead-row').innerHTML = selectHead + headerCells;
+  setupHeaderDnD();
 
   // Subtitle
   document.getElementById('brands-subtitle').textContent =
