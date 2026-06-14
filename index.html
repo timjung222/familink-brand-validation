@@ -2253,7 +2253,7 @@ const ALL_COLUMNS = [
   { key: 'status', label: '상태' },
   { key: 'assignee', label: '담당자' },
   { key: 'decider', label: '결정자' },
-  { key: 'actions', label: '액션', locked: true, alwaysLast: true },
+  { key: 'actions', label: '액션' },
 ];
 const DEFAULT_VISIBLE = ['expand','domain','categories','price','status','assignee','decider','actions'];
 const DEFAULT_ORDER = ['expand','domain','categories','price','status','assignee','decider','actions','location','platform'];
@@ -2283,8 +2283,8 @@ function getOrderedColumns() {
   const order = cfg.order.filter(k => ALL_COLUMNS.find(c => c.key === k));
   // make sure all columns are present
   ALL_COLUMNS.forEach(c => { if (!order.includes(c.key)) order.push(c.key); });
-  // force expand first, actions last
-  const ordered = ['expand'].concat(order.filter(k => k !== 'expand' && k !== 'actions')).concat(['actions']);
+  // force expand first only; actions can be moved freely now
+  const ordered = ['expand'].concat(order.filter(k => k !== 'expand'));
   return ordered.map(k => {
     const meta = ALL_COLUMNS.find(c => c.key === k);
     const visible = meta.locked ? true : cfg.visible.includes(k);
@@ -2298,7 +2298,7 @@ function moveColumn(key, dir) {
   const idx = order.indexOf(key);
   if (idx < 0) return;
   const newIdx = idx + dir;
-  if (newIdx < 1 || newIdx > order.length - 2) return; // protect expand[0] and actions[last]
+  if (newIdx < 1 || newIdx > order.length - 1) return; // protect expand[0] only
   const tmp = order[idx]; order[idx] = order[newIdx]; order[newIdx] = tmp;
   cfg.order = order;
   saveColumns(cfg);
@@ -2338,7 +2338,7 @@ function reorderColumn(key, targetKey, after) {
 function openColumnsModal() { renderColumnsModal(); document.getElementById('modal-columns').classList.add('active'); }
 function renderColumnsModal() {
   const cols = getOrderedColumns();
-  document.getElementById('col-list').innerHTML = cols.filter(c => c.key !== 'expand' && c.key !== 'actions').map(c => (
+  document.getElementById('col-list').innerHTML = cols.filter(c => c.key !== 'expand').map(c => (
     '<div class="col-row ' + (c.locked ? 'locked' : '') + '">' +
       '<input type="checkbox" ' + (c.visible ? 'checked' : '') + ' ' + (c.locked ? 'disabled' : '') + ' onchange="toggleColumnVisible(\'' + c.key + '\', this.checked)">' +
       '<span class="name">' + escapeHtml(c.label) + '</span>' +
@@ -2880,7 +2880,7 @@ async function renderBrands() {
   const showSelect = canDelete(currentUser);
   const headerCells = cols.map(c => {
     if (c.key === 'expand') return '<th data-col-key="expand" data-locked="1" style="width:30px"></th>';
-    if (c.key === 'actions') return '<th data-col-key="actions" data-locked="1" style="text-align:right">' + c.label + '</th>';
+    if (c.key === 'actions') return '<th data-col-key="actions" draggable="true" style="text-align:right">' + c.label + '</th>';
     const sk = COL_TO_SORT[c.key];
     const dragAttrs = ' data-col-key="' + c.key + '" draggable="true"';
     if (!sk) return '<th' + dragAttrs + '>' + escapeHtml(c.label) + '</th>';
