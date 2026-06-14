@@ -359,7 +359,7 @@
   }
   table.brands { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   table.brands th {
-    text-align: left; font-weight: 500; font-size: 11px; text-transform: uppercase;
+    text-align: center; font-weight: 500; font-size: 11px; text-transform: uppercase;
     letter-spacing: 0.07em; color: var(--text-dim); padding: 11px 14px;
     background: var(--panel-2); border-bottom: 1px solid var(--border); white-space: nowrap;
   }
@@ -706,6 +706,18 @@
   table.brands th.col-dragging { opacity: 0.4; cursor: grabbing !important; }
   table.brands th.col-drag-over-left { box-shadow: inset 3px 0 0 0 var(--accent); }
   table.brands th.col-drag-over-right { box-shadow: inset -3px 0 0 0 var(--accent); }
+
+  /* Excel-style column resize handle */
+  table.brands th[data-col-key] { position: relative; }
+  table.brands th[data-col-key] .col-resize-handle {
+    position: absolute; top: 0; right: -3px; width: 7px; height: 100%;
+    cursor: col-resize; z-index: 3; user-select: none;
+    background: transparent; transition: background .12s;
+  }
+  table.brands th[data-col-key] .col-resize-handle:hover,
+  table.brands th.col-resizing .col-resize-handle { background: var(--accent); opacity: 0.6; }
+  body.col-resizing-active { user-select: none !important; cursor: col-resize !important; }
+  body.col-resizing-active * { cursor: col-resize !important; }
 
   /* Row checkbox / selection */
   table.brands tr.selected { background: var(--accent-soft) !important; }
@@ -2798,6 +2810,62 @@ function onHeaderClick(ev, sortKey) {
   setSort(sortKey);
 }
 
+// =====================================================
+// Excel-style column resize
+// =====================================================
+let _colResizing = null;
+function applyColWidths() {
+  const cfg = loadColumns();
+  const widths = (cfg && cfg.widths) || {};
+  document.querySelectorAll('#thead-row th[data-col-key]').forEach(th => {
+    const k = th.getAttribute('data-col-key');
+    if (widths[k]) {
+      th.style.width = widths[k] + 'px';
+      th.style.minWidth = widths[k] + 'px';
+    }
+  });
+}
+function setupColResize() {
+  document.querySelectorAll('#thead-row th[data-col-key]').forEach(th => {
+    if (th.querySelector('.col-resize-handle')) return;
+    const h = document.createElement('div');
+    h.className = 'col-resize-handle';
+    h.setAttribute('draggable', 'false');
+    h.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startW = th.getBoundingClientRect().width;
+      _colResizing = { th, startX, startW, key: th.getAttribute('data-col-key') };
+      document.body.classList.add('col-resizing-active');
+      th.classList.add('col-resizing');
+      document.addEventListener('mousemove', _onColResizeMove);
+      document.addEventListener('mouseup', _onColResizeEnd);
+    });
+    h.addEventListener('click', (e) => e.stopPropagation());
+    th.appendChild(h);
+  });
+}
+function _onColResizeMove(e) {
+  if (!_colResizing) return;
+  const w = Math.max(40, _colResizing.startW + (e.clientX - _colResizing.startX));
+  _colResizing.th.style.width = w + 'px';
+  _colResizing.th.style.minWidth = w + 'px';
+}
+function _onColResizeEnd(e) {
+  if (!_colResizing) return;
+  const w = _colResizing.th.getBoundingClientRect().width;
+  const cfg = loadColumns();
+  cfg.widths = cfg.widths || {};
+  cfg.widths[_colResizing.key] = Math.round(w);
+  saveColumns(cfg);
+  document.body.classList.remove('col-resizing-active');
+  _colResizing.th.classList.remove('col-resizing');
+  _colResizing = null;
+  document.removeEventListener('mousemove', _onColResizeMove);
+  document.removeEventListener('mouseup', _onColResizeEnd);
+}
+
 // Wire up drag-and-drop on the current thead row (called after each header render)
 function setupHeaderDnD() {
   const row = document.getElementById('thead-row');
@@ -2812,6 +2880,9 @@ function setupHeaderDnD() {
     }
   }
   row.addEventListener('dragstart', e => {
+    // Don't start a column-reorder drag when the user grabs the resize handle
+    if (e.target && e.target.closest && e.target.closest('.col-resize-handle')) { e.preventDefault(); return; }
+    if (_colResizing) { e.preventDefault(); return; }
     const th = e.target.closest('th[data-col-key]');
     if (!th || th.hasAttribute('data-locked')) { e.preventDefault(); return; }
     draggedKey = th.getAttribute('data-col-key');
@@ -2880,7 +2951,7 @@ async function renderBrands() {
   const showSelect = canDelete(currentUser);
   const headerCells = cols.map(c => {
     if (c.key === 'expand') return '<th data-col-key="expand" data-locked="1" style="width:30px"></th>';
-    if (c.key === 'actions') return '<th data-col-key="actions" draggable="true" style="text-align:right">' + c.label + '</th>';
+    if (c.key === 'actions') return '<th data-col-key="actions" draggable="true">' + c.label + '</th>';
     const sk = COL_TO_SORT[c.key];
     const dragAttrs = ' data-col-key="' + c.key + '" draggable="true"';
     if (!sk) return '<th' + dragAttrs + '>' + escapeHtml(c.label) + '</th>';
@@ -2891,6 +2962,8 @@ async function renderBrands() {
   const selectHead = showSelect ? '<th class="col-select"><input id="select-all-cb" type="checkbox" onchange="selectAllVisible(this.checked)"></th>' : '';
   document.getElementById('thead-row').innerHTML = selectHead + headerCells;
   setupHeaderDnD();
+  setupColResize();
+  applyColWidths();
 
   // Subtitle
   document.getElementById('brands-subtitle').textContent =
