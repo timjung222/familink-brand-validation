@@ -2,6 +2,16 @@
 <html lang="ko" data-theme="light">
 <head>
 <meta charset="UTF-8">
+<script>
+// Auto-redirect mobile devices to /m unless ?desktop=1 is set
+(function(){
+  if (location.pathname.indexOf('/m') === 0) return;
+  if (location.search.indexOf('desktop=1') !== -1) { try { sessionStorage.setItem('fl_desktop', '1'); } catch(_){} return; }
+  try { if (sessionStorage.getItem('fl_desktop') === '1') return; } catch(_){}
+  var isMobile = (window.matchMedia && window.matchMedia('(max-width: 767px)').matches) || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  if (isMobile) location.replace('/m/' + location.search + location.hash);
+})();
+</script>
 <title>Familink — Brand Validation</title>
 <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d1d1f'/><circle cx='16' cy='22' r='3' fill='%23d93b3b'/><rect x='13.5' y='8' width='5' height='9' rx='1' fill='%23f4f4f5'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
