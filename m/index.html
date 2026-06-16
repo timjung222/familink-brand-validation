@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#5e6ad2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Familink — Mobile</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d1d1f'/><circle cx='16' cy='22' r='3' fill='%23d93b3b'/><rect x='13.5' y='8' width='5' height='9' rx='1' fill='%23f4f4f5'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --panel-2: #f6f7f9; --panel-3: #eef0f3;
+    --border: #e3e4e8; --border-strong: #cdd0d6;
+    --text: #0f1115; --text-2: #2a2d33; --text-dim: #6b6f76; --text-faint: #9a9ea6;
+    --accent: #5e6ad2; --accent-fg: #ffffff; --accent-hover: #4f5ac4; --accent-soft: #eef0fb;
+    --success: #1f8a4f; --success-soft: #e6f4ec;
+    --danger: #c81e2c; --danger-soft: #fbeaec;
+    --warning: #a36800; --warning-soft: #fbf0d4;
+    --shadow: 0 1px 2px rgba(15,17,21,0.06), 0 0 0 1px rgba(15,17,21,0.04);
+    --shadow-lg: 0 16px 40px rgba(15,17,21,0.16), 0 0 0 1px rgba(15,17,21,0.05);
+    --radius: 8px; --radius-lg: 12px; --radius-xl: 16px;
+    --safe-top: env(safe-area-inset-top);
+    --safe-bot: env(safe-area-inset-bottom);
+  }
+  html[data-theme="dark"] {
+    --bg: #0a0b0d; --panel: #14161a; --panel-2: #1c1e23; --panel-3: #24262c;
+    --border: #2a2d34; --border-strong: #3a3e47;
+    --text: #f4f5f7; --text-2: #d8dadf; --text-dim: #a1a4ad; --text-faint: #6e7280;
+    --accent: #7984e8; --accent-hover: #8b94ec; --accent-soft: #1f2236;
+    --success: #3fb950; --success-soft: #122a18;
+    --danger: #f85149; --danger-soft: #2a1416;
+    --warning: #d29922; --warning-soft: #271f0a;
+    --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    --shadow-lg: 0 24px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
+  }
+  button, input, select, textarea { font-family: inherit; }
+  button { cursor: pointer; border: none; background: none; color: inherit; }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ============ LOGIN SCREEN ============ */
+  .login-wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); z-index: 1000; }
+  .login-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 32px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow); }
+  .login-logo { display: flex; justify-content: center; margin-bottom: 8px; }
+  .login-logo svg { height: 36px; }
+  .login-sub { text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+  .form-group { margin-bottom: 12px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 6px; color: var(--text-2); }
+  .form-group input { width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 16px; }
+  .form-group input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .login-error { color: var(--danger); font-size: 12px; margin-top: 8px; text-align: center; min-height: 16px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 16px; border-radius: var(--radius); background: var(--panel); color: var(--text); border: 1px solid var(--border); font-weight: 500; font-size: 14px; transition: all .12s; min-height: 44px; }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .btn-success { background: var(--success); color: white; border-color: var(--success); }
+  .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
+  .btn-block { width: 100%; }
+  .btn-sm { padding: 7px 12px; font-size: 13px; min-height: 36px; }
+  .btn-xs { padding: 5px 10px; font-size: 12px; min-height: 30px; }
+
+  /* ============ APP SHELL ============ */
+  .app { display: none; flex-direction: column; height: 100dvh; padding-top: var(--safe-top); padding-bottom: var(--safe-bot); }
+  .app.active { display: flex; }
+  .topbar {
+    flex-shrink: 0; height: 52px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-actions { display: flex; gap: 4px; }
+  .icon-btn {
+    width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius); color: var(--text-dim); transition: background .12s;
+  }
+  .icon-btn:active { background: var(--panel-2); }
+  .icon-btn svg { width: 22px; height: 22px; }
+
+  /* ============ MAIN AREA ============ */
+  .view-container { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative; padding-bottom: 78px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ============ BRANDS VIEW ============ */
+  .stats-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    padding: 12px 16px 8px;
+  }
+  .stat-mini { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 6px; text-align: center; }
+  .stat-mini .lbl { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
+  .stat-mini .val { font-size: 17px; font-weight: 700; margin-top: 2px; letter-spacing: -0.02em; }
+  .stat-mini.pending .val { color: var(--warning); }
+  .stat-mini.approved .val { color: var(--success); }
+  .stat-mini.rejected .val { color: var(--danger); }
+
+  /* Filter chips */
+  .filter-bar { display: flex; gap: 6px; padding: 8px 16px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text-dim); font-size: 12px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px; min-height: 32px;
+  }
+  .chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .chip svg { width: 14px; height: 14px; }
+  .search-wrap { padding: 0 16px 8px; }
+  .search-wrap input { width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 15px; }
+
+  /* Brand cards */
+  .card-list { padding: 0 12px 12px; }
+  .brand-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 14px 16px; margin-bottom: 10px; position: relative;
+    overflow: hidden; touch-action: pan-y;
+    transition: transform .15s ease-out;
+    will-change: transform;
+  }
+  .brand-card.swiping { transition: none; }
+  .brand-card-content { position: relative; z-index: 2; background: var(--panel); }
+  .brand-card-bg {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 24px; font-size: 18px; font-weight: 700; z-index: 1; opacity: 0; transition: opacity .12s;
+  }
+  .brand-card-bg.left { justify-content: flex-start; background: var(--success); color: white; }
+  .brand-card-bg.right { justify-content: flex-end; background: var(--danger); color: white; }
+  .brand-card-bg .icon { font-size: 28px; margin: 0 8px; }
+  .brand-card.swipe-right .brand-card-bg.left { opacity: 1; }
+  .brand-card.swipe-left .brand-card-bg.right { opacity: 1; }
+  .brand-card.removing { transform: translateX(120%); opacity: 0; transition: all .25s ease-out; }
+  .brand-card.removing.left { transform: translateX(-120%); }
+  .domain-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .domain-text { font-size: 15px; font-weight: 600; color: var(--text); word-break: break-all; line-height: 1.3; flex: 1; min-width: 0; }
+  .meta-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .meta-row .mini { font-size: 11px; color: var(--text-dim); }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 500; flex-shrink: 0;
+  }
+  .status-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; }
+  .status-pending { background: var(--warning-soft); color: var(--warning); }
+  .status-pending::before { background: var(--warning); }
+  .status-approved { background: var(--success-soft); color: var(--success); }
+  .status-approved::before { background: var(--success); }
+  .status-rejected { background: var(--danger-soft); color: var(--danger); }
+  .status-rejected::before { background: var(--danger); }
+  .cat-row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .cat-tag { display: inline-block; padding: 2px 8px; background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 4px; font-size: 11px; }
+  .card-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .card-actions .btn { flex: 1; min-height: 38px; font-size: 12.5px; }
+  .swipe-hint { font-size: 10.5px; color: var(--text-faint); text-align: center; margin-top: 8px; }
+
+  /* Empty / loading */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+  .empty-state .icon { font-size: 36px; opacity: 0.4; margin-bottom: 8px; }
+  .spinner { width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-state { padding: 40px 20px; text-align: center; color: var(--text-dim); }
+
+  /* Pull to refresh indicator */
+  .ptr-indicator { position: absolute; top: 8px; left: 50%; transform: translate(-50%, -40px); display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12px; transition: transform .15s; }
+  .ptr-indicator.show { transform: translate(-50%, 0); }
+
+  /* Pagination */
+  .pager { padding: 12px 16px 28px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+  .pager .btn { min-height: 38px; min-width: 38px; padding: 6px 12px; }
+  .page-info { color: var(--text-dim); font-size: 12px; margin: 0 8px; }
+
+  /* ============ BOTTOM NAV ============ */
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; padding-bottom: var(--safe-bot);
+    background: var(--panel); border-top: 1px solid var(--border);
+    display: flex; z-index: 100;
+  }
+  .nav-item {
+    flex: 1; padding: 8px 0 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--text-dim); font-size: 10.5px; font-weight: 500;
+    min-height: 56px;
+  }
+  .nav-item svg { width: 22px; height: 22px; }
+  .nav-item.active { color: var(--accent); }
+  .nav-item:active { background: var(--panel-2); }
+
+  /* ============ DETAIL SHEET (full screen) ============ */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);
+    z-index: 200; display: none; opacity: 0; transition: opacity .2s;
+  }
+  .sheet-overlay.active { display: block; opacity: 1; }
+  .detail-sheet, .filter-sheet, .modal-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 92vh;
+    background: var(--panel); border-radius: 18px 18px 0 0;
+    z-index: 201; transform: translateY(100%); transition: transform .25s ease-out;
+    display: flex; flex-direction: column;
+    padding-bottom: var(--safe-bot);
+  }
+  .detail-sheet.active, .filter-sheet.active, .modal-sheet.active { transform: translateY(0); }
+  .detail-sheet.full { top: 0; max-height: 100dvh; border-radius: 0; padding-top: var(--safe-top); }
+  .sheet-handle { width: 36px; height: 4px; background: var(--border-strong); border-radius: 2px; margin: 8px auto 0; flex-shrink: 0; }
+  .sheet-header { padding: 12px 16px 4px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-shrink: 0; }
+  .sheet-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; flex: 1; min-width: 0; word-break: break-all; }
+  .sheet-close { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text-dim); background: var(--panel-2); flex-shrink: 0; }
+  .sheet-body { flex: 1; overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+  .sheet-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* Detail content */
+  .detail-section { margin-top: 18px; }
+  .detail-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-weight: 600; margin: 0 0 8px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .info-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+  .info-card .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 600; margin-bottom: 3px; }
+  .info-card .val { font-size: 13px; color: var(--text); word-break: break-word; line-height: 1.4; }
+  .info-card.full { grid-column: span 2; }
+  .social-list { display: flex; flex-direction: column; gap: 6px; }
+  .social-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); text-decoration: none;
+  }
+  .social-row .logo { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: white; }
+  .social-row .logo svg { width: 14px; height: 14px; }
+  .social-row .body { flex: 1; min-width: 0; }
+  .social-row .platform { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); }
+  .social-row .handle { font-size: 13px; font-weight: 600; }
+  .social-row .followers { font-size: 13px; font-weight: 700; color: var(--accent); }
+  .social-row.ig .logo { background: linear-gradient(135deg, #fd5949, #d6249f 50%, #285AEB); }
+  .social-row.li .logo { background: #0a66c2; }
+  .social-row.tt .logo { background: linear-gradient(135deg, #25F4EE, #000 50%, #FE2C55); }
+  .social-row.yt .logo { background: #ff0000; }
+  .social-row.x  .logo { background: #000; }
+  .social-row.fb .logo { background: #1877f2; }
+  .social-row.pin .logo { background: #e60023; }
+  .contact-row { display: flex; flex-direction: column; gap: 6px; }
+  .contact-chip { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-2); font-size: 13px; text-decoration: none; }
+  .contact-chip svg { width: 16px; height: 16px; color: var(--text-dim); }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .role-admin { background: var(--warning-soft); color: var(--warning); }
+  .role-manager { background: var(--accent-soft); color: var(--accent); }
+  .role-team { background: var(--success-soft); color: var(--success); }
+  .role-appointment_setter { background: #f3e8ff; color: #7e22ce; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: calc(72px + var(--safe-bot)); left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg);
+    transition: transform .25s; z-index: 300; pointer-events: none;
+    max-width: 80vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--success); color: white; }
+  .toast.error { background: var(--danger); color: white; }
+
+  /* ============ DASHBOARD ============ */
+  .dash-stats { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dash-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
+  .dash-card .lbl { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+  .dash-card .val { font-size: 24px; font-weight: 700; margin-top: 4px; letter-spacing: -0.02em; line-height: 1.1; }
+  .dash-card.pending .val { color: var(--warning); }
+  .dash-card.approved .val { color: var(--success); }
+  .dash-card.rejected .val { color: var(--danger); }
+  .dash-section { padding: 0 16px 16px; }
+  .dash-section h3 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; }
+
+  /* Team list */
+  .team-list { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .team-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .team-row:last-child { border-bottom: none; }
+  .team-row .left { display: flex; flex-direction: column; gap: 2px; }
+  .team-row .name { font-size: 13.5px; font-weight: 600; }
+  .team-row .role { font-size: 11px; color: var(--text-dim); }
+  .team-row .stats { display: flex; gap: 12px; font-size: 12px; }
+  .team-row .stat-num { font-weight: 700; font-size: 14px; color: var(--text); }
+  .team-row .stat-pending { color: var(--warning); }
+  .team-row .stat-approved { color: var(--success); }
+  .team-row .stat-rejected { color: var(--danger); }
+
+  /* ============ UPLOAD ============ */
+  .upload-wrap { padding: 16px; }
+  .dropzone {
+    border: 1.5px dashed var(--border-strong); border-radius: var(--radius-lg); padding: 32px 20px;
+    text-align: center; background: var(--panel-2);
+  }
+  .dropzone .icon { font-size: 32px; opacity: 0.5; margin-bottom: 8px; }
+  .upload-result { margin-top: 16px; padding: 14px 16px; border-radius: var(--radius); font-size: 13px; display: none; }
+  .upload-result.show { display: block; }
+  .upload-result.success { background: var(--success-soft); color: var(--success); }
+  .upload-result.error { background: var(--danger-soft); color: var(--danger); }
+  .upload-result .progress-bar { height: 8px; background: rgba(0,0,0,0.08); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+  .upload-result .progress-fill { height: 100%; background: var(--accent); transition: width .3s; border-radius: 999px; }
+
+  /* ============ MORE ============ */
+  .more-list { padding: 8px; }
+  .more-item {
+    display: flex; align-items: center; gap: 14px; padding: 14px 12px; border-radius: var(--radius);
+    color: var(--text); width: 100%; text-align: left;
+  }
+  .more-item:active { background: var(--panel-2); }
+  .more-item svg { width: 22px; height: 22px; color: var(--text-dim); flex-shrink: 0; }
+  .more-item .lbl { flex: 1; font-size: 14.5px; font-weight: 500; }
+  .more-item .sub { font-size: 11px; color: var(--text-dim); }
+  .more-item .chev { color: var(--text-faint); }
+  .more-user-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin: 16px; display: flex; align-items: center; gap: 12px; }
+  .more-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #8593e8); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; }
+  .more-user-name { font-size: 15px; font-weight: 600; }
+  .more-user-meta { font-size: 12px; color: var(--text-dim); }
+
+  /* Activity log */
+  .log-list { padding: 8px 16px 24px; display: flex; flex-direction: column; gap: 8px; }
+  .log-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
+  .log-time { font-size: 11px; color: var(--text-dim); }
+  .log-action { font-size: 13px; margin-top: 2px; }
+  .log-action b { font-weight: 600; }
+
+  /* PWA install hint - small banner */
+  .install-hint { position: fixed; left: 12px; right: 12px; bottom: calc(78px + var(--safe-bot)); padding: 10px 14px; background: var(--accent); color: white; border-radius: var(--radius); display: none; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; z-index: 50; box-shadow: var(--shadow-lg); }
+  .install-hint.show { display: flex; }
+  .install-hint button { color: white; font-weight: 600; padding: 4px 8px; }
+
+  /* Filter sheet */
+  .filter-sheet { padding-bottom: calc(20px + var(--safe-bot)); }
+  .filter-group { padding: 12px 16px; }
+  .filter-group h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 600; margin: 0 0 8px; }
+  .filter-group .chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-group select { width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 15px; }
+
+  /* Helpers */
+  .muted { color: var(--text-dim); }
+  .hidden { display: none !important; }
+  .dup-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--warning-soft); color: var(--warning); padding: 2px 7px; border-radius: 4px; font-size: 10.5px; font-weight: 600; }
+  .dup-badge::before { content: ''; width: 5px; height: 5px; background: var(--warning); border-radius: 50%; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="login-wrap active" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 220 38" xmlns="http://www.w3.org/2000/svg" aria-label="Familink">
+        <text x="0" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">FAM</text>
+        <text x="62" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">L</text>
+        <circle cx="86" cy="14" r="3" fill="#d93b3b"/>
+        <text x="92" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">NK</text>
+      </svg>
+    </div>
+    <div class="login-sub">브랜드 검토 · 모바일</div>
+    <div class="form-group">
+      <label>이메일</label>
+      <input id="login-email" type="email" autocomplete="email" autocapitalize="none" inputmode="email" placeholder="you@example.com">
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="topbar-title" id="topbar-title">브랜드</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" aria-label="테마">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+      </button>
+      <button class="icon-btn" id="filter-btn" onclick="openFilters()" aria-label="필터">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="view-container" id="view-container">
+
+    <!-- ===== BRANDS VIEW ===== -->
+    <div class="view active" data-view="brands" id="view-brands">
+      <div class="stats-strip" id="stats-strip"></div>
+      <div class="search-wrap"><input id="search" type="search" placeholder="도메인, 카테고리 검색..." enterkeyhint="search"></div>
+      <div class="filter-bar" id="filter-bar"></div>
+      <div class="card-list" id="card-list">
+        <div class="loading-state"><div class="spinner"></div></div>
+      </div>
+      <div class="pager" id="pager"></div>
+    </div>
+
+    <!-- ===== DASHBOARD VIEW ===== -->
+    <div class="view" data-view="dashboard" id="view-dashboard">
+      <div class="dash-stats" id="dash-stats"></div>
+      <div class="dash-section">
+        <h3>팀원별 처리 현황</h3>
+        <div class="team-list" id="team-list"></div>
+      </div>
+    </div>
+
+    <!-- ===== UPLOAD VIEW ===== -->
+    <div class="view" data-view="upload" id="view-upload">
+      <div class="upload-wrap">
+        <div class="dropzone" id="dropzone">
+          <div class="icon">📁</div>
+          <div style="font-weight:600;font-size:15px;margin-bottom:4px">CSV 업로드</div>
+          <div style="color:var(--text-dim);font-size:12.5px;margin-bottom:12px">탭해서 파일 선택</div>
+          <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">파일 선택</button>
+        </div>
+        <input id="file-input" type="file" accept=".csv" style="display:none" onchange="handleFile(event)">
+        <div class="upload-result" id="upload-result"></div>
+      </div>
+    </div>
+
+    <!-- ===== MORE VIEW ===== -->
+    <div class="view" data-view="more" id="view-more">
+      <div class="more-user-card">
+        <div class="more-avatar" id="more-avatar">U</div>
+        <div style="flex:1;min-width:0">
+          <div class="more-user-name" id="more-user-name">User</div>
+          <div class="more-user-meta" id="more-user-meta"></div>
+        </div>
+        <span class="role-badge" id="more-role-badge"></span>
+      </div>
+      <div class="more-list">
+        <button class="more-item" onclick="openLog()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="m19 6-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+          <span class="lbl">활동 로그</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+        <button class="more-item" onclick="openDesktop()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          <span class="lbl">PC 버전으로 보기</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+        <button class="more-item" onclick="doLogout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          <span class="lbl" style="color: var(--danger)">로그아웃</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-nav="brands" onclick="switchView('brands')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      <span>브랜드</span>
+    </button>
+    <button class="nav-item" data-nav="dashboard" onclick="switchView('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+      <span>대시보드</span>
+    </button>
+    <button class="nav-item" data-nav="upload" onclick="switchView('upload')" id="nav-upload">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+      <span>업로드</span>
+    </button>
+    <button class="nav-item" data-nav="more" onclick="switchView('more')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+      <span>더보기</span>
+    </button>
+  </nav>
+</div>
+
+<!-- Sheets -->
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeAllSheets()"></div>
+
+<div class="detail-sheet full" id="detail-sheet">
+  <div class="sheet-header">
+    <div class="sheet-title" id="detail-title">—</div>
+    <button class="sheet-close" onclick="closeAllSheets()" aria-label="닫기">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+  </div>
+  <div class="sheet-body" id="detail-body"></div>
+  <div class="sheet-footer" id="detail-footer"></div>
+</div>
+
+<div class="filter-sheet" id="filter-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">필터</div>
+    <button class="sheet-close" onclick="closeAllSheets()">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+  </div>
+  <div class="sheet-body">
+    <div class="filter-group">
+      <h4>상태</h4>
+      <div class="chip-wrap" id="filter-status-chips">
+        <button class="chip active" data-status="">전체</button>
+        <button class="chip" data-status="pending">대기중</button>
+        <button class="chip" data-status="approved">승인</button>
+        <button class="chip" data-status="rejected">반려</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <h4>국가</h4>
+      <select id="filter-country"><option value="">전체 국가</option></select>
+    </div>
+    <div class="filter-group">
+      <h4>카테고리</h4>
+      <select id="filter-category"><option value="">전체 카테고리</option></select>
+    </div>
+    <div class="filter-group" id="filter-assignee-wrap">
+      <h4>담당자</h4>
+      <select id="filter-assignee"><option value="">전체 담당자</option></select>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-block" onclick="resetFilters()">초기화</button>
+    <button class="btn btn-primary btn-block" onclick="applyFilters()">적용</button>
+  </div>
+</div>
+
+<!-- Activity log sheet -->
+<div class="detail-sheet full" id="log-sheet">
+  <div class="sheet-header">
+    <div class="sheet-title">활동 로그</div>
+    <button class="sheet-close" onclick="closeAllSheets()">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+  </div>
+  <div class="sheet-body">
+    <div class="log-list" id="log-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">메시지</div>
+
+<script>
+// ============================================================
+// Familink Mobile
+// ============================================================
+const SUPABASE_URL = 'https://fosxrscmgnxaywewaptc.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JtWWPppHxvRjrgknVO4BmA_L_DfPQJx';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// State
+let currentUser = null;
+let currentView = 'brands';
+let currentPage = 1;
+const PAGE_SIZE = 30;
+let totalCount = 0;
+let currentFilters = { status: '', search: '', country: '', category: '', assignee: '' };
+let brandsCache = [];
+let profilesCache = [];
+const userMap = {};
+
+// Theme
+function loadTheme() {
+  const t = localStorage.getItem('familink_theme_v1') || 'light';
+  document.documentElement.setAttribute('data-theme', t);
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('familink_theme_v1', next);
+}
+loadTheme();
+
+// Utils
+function $(id) { return document.getElementById(id); }
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+function fmtInt(n) { return Number(n || 0).toLocaleString(); }
+function formatNum(n) {
+  n = parseFloat(n); if (isNaN(n)) return '';
+  if (n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+  return String(n);
+}
+function formatDate(s) {
+  if (!s) return '';
+  try { const d = new Date(s); return d.toISOString().slice(0,10) + ' ' + d.toTimeString().slice(0,5); } catch(_) { return s; }
+}
+function toast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' ' + type : '') + ' show';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function approveSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(700, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    o.start(); o.stop(ctx.currentTime + 0.15);
+  } catch(_) {}
+}
+function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+
+// ============ Auth ============
+async function doLogin() {
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  if (!email || !password) { $('login-error').textContent = '이메일/비밀번호 입력'; return; }
+  $('login-error').textContent = '로그인 중...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { $('login-error').textContent = error.message; return; }
+  $('login-error').textContent = '';
+  await afterLogin();
+}
+async function doLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+async function afterLogin() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { showLogin(); return; }
+  // Load profile
+  const { data: prof } = await sb.from('profiles').select('*').eq('id', user.id).single();
+  if (!prof) { toast('프로필 없음', 'error'); return; }
+  currentUser = prof;
+  // Load all profiles for userMap
+  const { data: all } = await sb.from('profiles').select('*');
+  profilesCache = all || [];
+  profilesCache.forEach(u => userMap[u.username] = u);
+  // Hide login, show app
+  $('login-screen').classList.remove('active');
+  $('login-screen').style.display = 'none';
+  $('app').classList.add('active');
+  // Setup nav based on role
+  if (!canUpload(currentUser)) $('nav-upload').style.display = 'none';
+  // Populate more screen
+  $('more-avatar').textContent = (currentUser.name || 'U').charAt(0).toUpperCase();
+  $('more-user-name').textContent = currentUser.name || currentUser.username;
+  $('more-user-meta').textContent = currentUser.username;
+  $('more-role-badge').textContent = currentUser.role === 'appointment_setter' ? 'APPT' : currentUser.role.toUpperCase();
+  $('more-role-badge').className = 'role-badge role-' + currentUser.role;
+  // Load filters then render
+  await loadDistinctFilters();
+  await renderBrands();
+}
+function showLogin() {
+  $('login-screen').style.display = 'flex';
+  $('login-screen').classList.add('active');
+  $('app').classList.remove('active');
+}
+function canUpload(u) { return u && (u.role === 'admin' || (u.role === 'manager' && u.can_upload)); }
+function canDelete(u) { return u && (u.role === 'admin' || u.can_delete); }
+function canDecide(u) { return u && (u.role === 'admin' || u.role === 'manager' || u.role === 'team'); }
+function canAssign(u) { return u && (u.role === 'admin' || u.role === 'manager'); }
+
+// ============ View switching ============
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.dataset.view === v));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.nav === v));
+  const titles = { brands: '브랜드', dashboard: '대시보드', upload: '업로드', more: '더보기' };
+  $('topbar-title').textContent = titles[v];
+  $('filter-btn').style.display = (v === 'brands') ? '' : 'none';
+  if (v === 'dashboard') loadDashboard();
+}
+
+// ============ Sheets ============
+function closeAllSheets() {
+  $('sheet-overlay').classList.remove('active');
+  $('detail-sheet').classList.remove('active');
+  $('filter-sheet').classList.remove('active');
+  $('log-sheet').classList.remove('active');
+}
+function openSheet(id) {
+  $('sheet-overlay').classList.add('active');
+  $(id).classList.add('active');
+}
+function openFilters() {
+  // Populate assignee dropdown
+  const sel = $('filter-assignee');
+  const teams = profilesCache.filter(u => u.role === 'team');
+  sel.innerHTML = '<option value="">전체 담당자</option><option value="__unassigned">미할당</option>' +
+    teams.map(u => '<option value="' + escapeAttr(u.username) + '">' + escapeHtml(u.name) + '</option>').join('');
+  sel.value = currentFilters.assignee;
+  if (currentUser.role === 'team') $('filter-assignee-wrap').style.display = 'none';
+  $('filter-country').value = currentFilters.country;
+  $('filter-category').value = currentFilters.category;
+  document.querySelectorAll('#filter-status-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.status === currentFilters.status));
+  openSheet('filter-sheet');
+}
+function resetFilters() {
+  currentFilters = { status: '', search: '', country: '', category: '', assignee: '' };
+  $('search').value = '';
+  closeAllSheets();
+  currentPage = 1;
+  renderBrands();
+}
+function applyFilters() {
+  currentFilters.country = $('filter-country').value;
+  currentFilters.category = $('filter-category').value;
+  currentFilters.assignee = currentUser.role === 'team' ? '' : $('filter-assignee').value;
+  closeAllSheets();
+  currentPage = 1;
+  renderBrands();
+}
+
+// ============ Distinct filter values ============
+let _distinctCache = null;
+async function loadDistinctFilters() {
+  if (_distinctCache) return _distinctCache;
+  try {
+    const [countries, categories] = await Promise.all([
+      sb.rpc('distinct_countries'),
+      sb.rpc('distinct_top_categories')
+    ]);
+    const c = (countries.data || []).map(r => r.country_code).filter(Boolean);
+    const cat = (categories.data || []).map(r => r.cat).filter(Boolean);
+    $('filter-country').innerHTML = '<option value="">전체 국가</option>' + c.map(x => '<option value="' + escapeAttr(x) + '">' + escapeHtml(x) + '</option>').join('');
+    $('filter-category').innerHTML = '<option value="">전체 카테고리</option>' + cat.map(x => '<option value="' + escapeAttr(x) + '">' + escapeHtml(x) + '</option>').join('');
+    _distinctCache = { countries: c, categories: cat };
+  } catch(e) { console.warn(e); }
+  return _distinctCache;
+}
+
+// ============ Filter chips on main view ============
+function renderFilterBar() {
+  const all = [
+    { status: '', label: '전체' },
+    { status: 'pending', label: '대기중' },
+    { status: 'approved', label: '승인' },
+    { status: 'rejected', label: '반려' },
+  ];
+  $('filter-bar').innerHTML = all.map(f =>
+    '<button class="chip ' + (currentFilters.status === f.status ? 'active' : '') + '" onclick="setStatusFilter(\'' + f.status + '\')">' + f.label + '</button>'
+  ).join('');
+}
+function setStatusFilter(s) {
+  currentFilters.status = s;
+  currentPage = 1;
+  renderBrands();
+}
+
+// Filter sheet chip clicks
+document.addEventListener('click', e => {
+  const chip = e.target.closest('#filter-status-chips .chip');
+  if (chip) {
+    document.querySelectorAll('#filter-status-chips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilters.status = chip.dataset.status;
+  }
+});
+
+// ============ Search ============
+let _searchTimer = null;
+document.addEventListener('input', e => {
+  if (e.target.id === 'search') {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => {
+      currentFilters.search = e.target.value.trim();
+      currentPage = 1;
+      renderBrands();
+    }, 250);
+  }
+});
+
+// ============ Brands data ============
+async function fetchBrandsPage() {
+  let q = sb.from('brands').select('*', { count: 'exact' });
+  if (currentFilters.status) q = q.eq('review_status', currentFilters.status);
+  if (currentFilters.country) q = q.eq('country_code', currentFilters.country);
+  if (currentFilters.category) q = q.like('categories', '%' + currentFilters.category + '%');
+  if (currentFilters.assignee === '__unassigned') q = q.is('assigned_to', null);
+  else if (currentFilters.assignee) q = q.eq('assigned_to', currentFilters.assignee);
+  if (currentFilters.search) {
+    const s = currentFilters.search.replace(/%/g, '');
+    q = q.or('domain.ilike.%' + s + '%,categories.ilike.%' + s + '%,city.ilike.%' + s + '%');
+  }
+  // Team scoping: team users only see their own assigned
+  if (currentUser.role === 'team') q = q.eq('assigned_to', currentUser.username);
+  if (currentUser.role === 'team' || currentUser.role === 'appointment_setter') {
+    if (Array.isArray(currentUser.visible_statuses) && currentUser.visible_statuses.length > 0) {
+      q = q.in('review_status', currentUser.visible_statuses);
+    }
+  }
+  q = q.order('created_at', { ascending: false });
+  q = q.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+  const { data, error, count } = await q;
+  if (error) { console.warn(error); return { data: [], count: 0 }; }
+  return { data: data || [], count: count || 0 };
+}
+
+async function renderStats() {
+  try {
+    const filt = { ...currentFilters };
+    delete filt.status; // stats independent of status
+    const queries = ['pending', 'approved', 'rejected'].map(s => {
+      let q = sb.from('brands').select('id', { count: 'exact', head: true }).eq('review_status', s);
+      if (currentUser.role === 'team') q = q.eq('assigned_to', currentUser.username);
+      return q;
+    });
+    queries.unshift((() => {
+      let q = sb.from('brands').select('id', { count: 'exact', head: true });
+      if (currentUser.role === 'team') q = q.eq('assigned_to', currentUser.username);
+      return q;
+    })());
+    const results = await Promise.all(queries);
+    const [total, pending, approved, rejected] = results.map(r => r.count || 0);
+    $('stats-strip').innerHTML =
+      '<div class="stat-mini" onclick="setStatusFilter(\'\')"><div class="lbl">전체</div><div class="val">' + fmtInt(total) + '</div></div>' +
+      '<div class="stat-mini pending" onclick="setStatusFilter(\'pending\')"><div class="lbl">대기</div><div class="val">' + fmtInt(pending) + '</div></div>' +
+      '<div class="stat-mini approved" onclick="setStatusFilter(\'approved\')"><div class="lbl">승인</div><div class="val">' + fmtInt(approved) + '</div></div>' +
+      '<div class="stat-mini rejected" onclick="setStatusFilter(\'rejected\')"><div class="lbl">반려</div><div class="val">' + fmtInt(rejected) + '</div></div>';
+  } catch(e) { console.warn(e); }
+}
+
+async function renderBrands() {
+  renderFilterBar();
+  await renderStats();
+  $('card-list').innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+  const { data, count } = await fetchBrandsPage();
+  brandsCache = data;
+  totalCount = count;
+  if (!data.length) {
+    $('card-list').innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>표시할 브랜드 없음</div></div>';
+    $('pager').innerHTML = '';
+    return;
+  }
+  $('card-list').innerHTML = data.map(renderBrandCard).join('');
+  // Pager
+  const totalPages = Math.ceil(count / PAGE_SIZE);
+  $('pager').innerHTML =
+    '<button class="btn btn-sm" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goPage(' + (currentPage - 1) + ')">‹</button>' +
+    '<span class="page-info">' + currentPage + ' / ' + totalPages + ' · 총 ' + fmtInt(count) + '</span>' +
+    '<button class="btn btn-sm" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goPage(' + (currentPage + 1) + ')">›</button>';
+  // Bind swipe + tap on each card
+  document.querySelectorAll('.brand-card').forEach(el => bindSwipe(el));
+}
+function goPage(p) { currentPage = Math.max(1, p); renderBrands(); $('view-container').scrollTo({ top: 0, behavior: 'smooth' }); }
+
+function renderBrandCard(b) {
+  const label = { pending: '대기중', approved: '승인', rejected: '반려' }[b.review_status];
+  const cats = (b.categories || '').split(':').filter(Boolean).slice(0, 3).map(c => '<span class="cat-tag">' + escapeHtml(c.split('/').pop()) + '</span>').join('');
+  const dup = b.pending_update ? '<span class="dup-badge">중복 업데이트</span>' : '';
+  const decideButtons = canDecide(currentUser) && b.review_status === 'pending'
+    ? '<div class="card-actions">' +
+        '<button class="btn btn-success btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'approved\')">승인</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'rejected\')">반려</button>' +
+      '</div>'
+    : '';
+  const swipeHint = canDecide(currentUser) && b.review_status === 'pending' ? '<div class="swipe-hint">← 반려 · 승인 →</div>' : '';
+  return (
+    '<div class="brand-card" data-id="' + b.id + '" data-status="' + b.review_status + '" onclick="openDetail(\'' + b.id + '\')">' +
+      '<div class="brand-card-bg left"><span class="icon">✓</span>승인</div>' +
+      '<div class="brand-card-bg right">반려<span class="icon">✕</span></div>' +
+      '<div class="brand-card-content">' +
+        '<div class="domain-row">' +
+          '<div class="domain-text">' + escapeHtml(b.domain) + '</div>' +
+          '<span class="status-badge status-' + b.review_status + '">' + label + '</span>' +
+        '</div>' +
+        '<div class="meta-row">' +
+          (b.company_location ? '<span class="mini">' + escapeHtml(b.company_location) + '</span>' : '') +
+          (b.assigned_to ? '<span class="mini">· @' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</span>' : '') +
+          (dup ? '· ' + dup : '') +
+        '</div>' +
+        (cats ? '<div class="cat-row">' + cats + '</div>' : '') +
+        decideButtons +
+        swipeHint +
+      '</div>' +
+    '</div>'
+  );
+}
+
+// ============ Swipe ============
+function bindSwipe(card) {
+  if (!canDecide(currentUser)) return;
+  if (card.dataset.status !== 'pending') return;
+  let startX = 0, startY = 0, dx = 0, isSwiping = false, locked = null;
+  const content = card.querySelector('.brand-card-content');
+  card.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY; isSwiping = true; locked = null;
+    card.classList.add('swiping');
+  }, { passive: true });
+  card.addEventListener('touchmove', e => {
+    if (!isSwiping) return;
+    const x = e.touches[0].clientX; const y = e.touches[0].clientY;
+    dx = x - startX;
+    const dy = y - startY;
+    if (locked === null) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+    }
+    if (locked === 'x') {
+      e.preventDefault && e.preventDefault();
+      content.style.transform = 'translateX(' + dx + 'px)';
+      card.classList.toggle('swipe-right', dx > 5);
+      card.classList.toggle('swipe-left', dx < -5);
+    }
+  }, { passive: false });
+  card.addEventListener('touchend', () => {
+    card.classList.remove('swiping');
+    if (locked === 'x') {
+      const threshold = 100;
+      if (dx > threshold) commitSwipe(card, 'approved');
+      else if (dx < -threshold) commitSwipe(card, 'rejected');
+      else {
+        content.style.transform = '';
+        card.classList.remove('swipe-right', 'swipe-left');
+      }
+    } else {
+      card.classList.remove('swipe-right', 'swipe-left');
+    }
+    isSwiping = false; dx = 0;
+  });
+}
+async function commitSwipe(card, decision) {
+  const id = card.dataset.id;
+  vibrate(decision === 'approved' ? 30 : [15, 30, 15]);
+  card.classList.add('removing');
+  if (decision === 'rejected') card.classList.add('left');
+  if (decision === 'approved') approveSound();
+  setTimeout(() => {
+    card.style.maxHeight = '0';
+    card.style.padding = '0';
+    card.style.margin = '0';
+    card.style.border = 'none';
+  }, 250);
+  await sb.from('brands').update({ review_status: decision, decided_by: currentUser.username, decided_by_name: currentUser.name, decided_at: new Date().toISOString() }).eq('id', id);
+  setTimeout(() => renderStats(), 400);
+  toast(decision === 'approved' ? '✓ 승인됨' : '✕ 반려됨', decision === 'approved' ? 'success' : 'error');
+}
+
+async function decide(id, decision) {
+  const card = document.querySelector('.brand-card[data-id="' + id + '"]');
+  if (card) commitSwipe(card, decision);
+  else {
+    await sb.from('brands').update({ review_status: decision, decided_by: currentUser.username, decided_by_name: currentUser.name, decided_at: new Date().toISOString() }).eq('id', id);
+    toast(decision === 'approved' ? '✓ 승인됨' : '✕ 반려됨', decision === 'approved' ? 'success' : 'error');
+    renderBrands();
+  }
+}
+
+// ============ Detail ============
+async function openDetail(id) {
+  const b = brandsCache.find(x => x.id == id);
+  if (!b) return;
+  $('detail-title').textContent = b.domain;
+  $('detail-body').innerHTML = renderDetailContent(b);
+  $('detail-footer').innerHTML = renderDetailActions(b);
+  openSheet('detail-sheet');
+}
+function renderDetailContent(b) {
+  const cats = (b.categories || '').split(':').filter(Boolean).map(c => '<span class="cat-tag">' + escapeHtml(c) + '</span>').join('');
+  const socials = [];
+  if (b.instagram) socials.push({ cls:'ig', name:'Instagram', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.3 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .3-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.3-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.3 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 5.8.1 5 .3 4.2.6c-.8.3-1.5.7-2.2 1.4C1.3 2.7.9 3.4.6 4.2.3 5 .1 5.8.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.1 1.3.3 2.1.6 2.9.3.8.7 1.5 1.4 2.2.7.7 1.4 1.1 2.2 1.4.8.3 1.6.5 2.9.6C8.3 24 8.7 24 12 24s3.7 0 4.9-.1c1.3-.1 2.1-.3 2.9-.6.8-.3 1.5-.7 2.2-1.4.7-.7 1.1-1.4 1.4-2.2.3-.8.5-1.6 �-2.9.1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.1-1.3-.3-2.1-.6-2.9-.3-.8-.7-1.5-1.4-2.2C20.3 1.3 19.6.9 18.8.6 18 .3 17.2.1 15.9.1 14.7 0 14.3 0 12 0zm0 5.8c-3.4 0-6.2 2.8-6.2 6.2s2.8 6.2 6.2 6.2 6.2-2.8 6.2-6.2-2.8-6.2-6.2-6.2zm0 10.2c-2.2 0-4-1.8-4-4s1.8-4 4-4 4 1.8 4 4-1.8 4-4 4zm6.4-10.4c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4 1.4-.6 1.4-1.4-.6-1.4-1.4-1.4z"/></svg>', handle:'@'+b.instagram, url: b.instagram_url || ('https://instagram.com/' + b.instagram), followers: b.instagram_followers });
+  if (b.linkedin_account) socials.push({ cls:'li', name:'LinkedIn', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 0H5C2.2 0 0 2.2 0 5v14c0 2.8 2.2 5 5 5h14c2.8 0 5-2.2 5-5V5c0-2.8-2.2-5-5-5zM7.1 20H3.6V8.5h3.5V20zM5.3 7c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 20h-3.5v-5.7c0-1.4-.5-2.3-1.7-2.3-.9 0-1.4.6-1.7 1.3-.1.2-.1.5-.1.9V20H9.5V8.5H13v1.5c.5-.7 1.2-1.8 2.9-1.8 2.1 0 3.7 1.4 3.7 4.3V20z"/></svg>', handle:b.linkedin_account, url: b.linkedin_url || ('https://linkedin.com/company/' + b.linkedin_account), followers: null });
+  if (b.tiktok) socials.push({ cls:'tt', name:'TikTok', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.6 5.2c-1.4 0-2.7-.7-3.4-1.9-.3-.5-.5-1-.5-1.6V1H12v15.4c0 1.6-1.3 2.9-2.9 2.9s-2.9-1.3-2.9-2.9 1.3-2.9 2.9-2.9c.3 0 .6 0 .9.1V9.9c-.3 0-.6-.1-.9-.1-3.7 0-6.6 3-6.6 6.6s3 6.6 6.6 6.6 6.6-3 6.6-6.6V9.3c1.4 1 3.1 1.6 4.9 1.6V7.2c-.3 0-.6-.1-.9-.1-.4-.5-1.1-1.4-1.1-1.9z"/></svg>', handle:b.tiktok, url:'https://tiktok.com/' + b.tiktok, followers: b.tiktok_followers });
+  if (b.youtube) socials.push({ cls:'yt', name:'YouTube', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2s-.2-1.6-1-2.3c-.9-1-1.9-1-2.4-1C16.8 2.5 12 2.5 12 2.5s-4.8 0-8.1.4c-.5 0-1.5.1-2.4 1-.7.7-1 2.3-1 2.3S0 8 0 9.9v1.8C0 13.6.2 15.5.2 15.5s.2 1.6 1 2.3c.9 1 2.2.9 2.8 1 2 .2 8 .3 8 .3s4.8 0 8.1-.4c.5 0 1.5-.1 2.4-1 .7-.7 1-2.3 1-2.3S24 13.6 24 11.7V9.9c0-1.9-.5-3.7-.5-3.7zM9.5 14.5V7.8l6.5 3.4-6.5 3.3z"/></svg>', handle:b.youtube, url:'https://youtube.com/' + b.youtube, followers: b.youtube_followers });
+  if (b.twitter) socials.push({ cls:'x', name:'X', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2.3h3.4l-7.4 8.5L23 22h-6.8L10.9 15l-6.1 7H1.4l7.9-9-7.6-10h7l4.8 6.4 5.7-6.4zm-1.2 17.6h1.9L7.1 4H5z"/></svg>', handle:'@'+b.twitter, url:'https://x.com/' + b.twitter, followers: b.twitter_followers });
+  if (b.facebook) socials.push({ cls:'fb', name:'Facebook', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12c0-6.6-5.4-12-12-12S0 5.4 0 12c0 6 4.4 11 10.1 11.9V15.5H7.1V12h3v-2.6c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2v2.9h-1.5c-1.5 0-2 .9-2 1.9V12H17l-.5 3.5h-2.8v8.4C19.6 23 24 18 24 12z"/></svg>', handle:b.facebook, url:'https://facebook.com/' + b.facebook, followers: null });
+  if (b.pinterest) socials.push({ cls:'pin', name:'Pinterest', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12c0 5 3 9.3 7.4 11.1-.1-.9-.2-2.4 0-3.4.2-.9 1.3-5.7 1.3-5.7s-.3-.7-.3-1.7c0-1.5.9-2.7 2-2.7.9 0 1.4.7 1.4 1.6 0 1-.6 2.4-.9 3.8-.3 1.1.6 2 1.6 2 1.9 0 3.4-2 3.4-5 0-2.6-1.9-4.4-4.5-4.4-3.1 0-4.9 2.3-4.9 4.7 0 .9.4 1.9.8 2.5.1.1.1.2.1.3-.1.4-.3 1.1-.3 1.3-.1.2-.2.2-.4.2-1.5-.7-2.4-2.9-2.4-4.6 0-3.8 2.7-7.2 7.9-7.2 4.1 0 7.4 3 7.4 6.9 0 4.1-2.6 7.4-6.2 7.4-1.2 0-2.4-.6-2.7-1.4 0 0-.6 2.3-.7 2.9-.3 1-1 2.4-1.4 3.2C9.6 23.9 10.8 24 12 24c6.6 0 12-5.4 12-12S18.6 0 12 0z"/></svg>', handle:b.pinterest, url:'https://pinterest.com/' + b.pinterest, followers: b.pinterest_followers });
+  const socialHtml = socials.length > 0 ? '<div class="social-list">' + socials.map(s => (
+    '<a class="social-row ' + s.cls + '" href="' + escapeAttr(s.url) + '" target="_blank" rel="noopener">' +
+      '<div class="logo">' + s.icon + '</div>' +
+      '<div class="body"><div class="platform">' + s.name + '</div><div class="handle">' + escapeHtml(s.handle) + '</div></div>' +
+      (s.followers ? '<div class="followers">' + formatNum(s.followers) + '</div>' : '') +
+    '</a>'
+  )).join('') + '</div>' : '<div class="muted" style="text-align:center;padding:8px">SNS 정보 없음</div>';
+  // Contacts (only for admin/appointment_setter)
+  let contactHtml = '';
+  const canSeeContacts = currentUser.role === 'admin' || currentUser.role === 'appointment_setter';
+  if (canSeeContacts) {
+    const emails = (b.emails || '').split(':').filter(Boolean);
+    const phones = (b.phones || '').split(':').filter(Boolean);
+    const rows = [];
+    emails.forEach(em => rows.push('<a class="contact-chip" href="mailto:' + escapeAttr(em) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>' + escapeHtml(em) + '</a>'));
+    phones.forEach(ph => rows.push('<a class="contact-chip" href="tel:' + escapeAttr(ph) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' + escapeHtml(ph) + '</a>'));
+    if (rows.length) contactHtml = '<div class="detail-section"><h4>연락처</h4><div class="contact-row">' + rows.join('') + '</div></div>';
+  }
+  return (
+    '<div class="detail-section"><h4>기본 정보</h4><div class="info-grid">' +
+      '<div class="info-card"><div class="lbl">도메인</div><div class="val"><a href="' + escapeAttr(b.domain_url || ('https://' + b.domain)) + '" target="_blank" rel="noopener">' + escapeHtml(b.domain) + '</a></div></div>' +
+      '<div class="info-card"><div class="lbl">상태</div><div class="val"><span class="status-badge status-' + b.review_status + '">' + ({pending:'대기중',approved:'승인',rejected:'반려'})[b.review_status] + '</span></div></div>' +
+      (b.company_location ? '<div class="info-card full"><div class="lbl">위치</div><div class="val">' + escapeHtml(b.company_location) + '</div></div>' : '') +
+      (cats ? '<div class="info-card full"><div class="lbl">카테고리</div><div class="val">' + cats + '</div></div>' : '') +
+      (b.average_product_price_usd ? '<div class="info-card"><div class="lbl">평균가</div><div class="val">' + escapeHtml(b.average_product_price_usd) + '</div></div>' : '') +
+      (b.plan || b.platform ? '<div class="info-card"><div class="lbl">플랫폼</div><div class="val">' + escapeHtml(b.plan || b.platform) + '</div></div>' : '') +
+      (b.assigned_to ? '<div class="info-card"><div class="lbl">담당자</div><div class="val">' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</div></div>' : '') +
+      (b.decided_by ? '<div class="info-card"><div class="lbl">결정자</div><div class="val">' + escapeHtml(b.decided_by_name || (userMap[b.decided_by] && userMap[b.decided_by].name) || b.decided_by) + '<br><span class="muted" style="font-size:11px">' + formatDate(b.decided_at) + '</span></div></div>' : '') +
+    '</div></div>' +
+    '<div class="detail-section"><h4>SNS</h4>' + socialHtml + '</div>' +
+    contactHtml
+  );
+}
+function renderDetailActions(b) {
+  if (!canDecide(currentUser)) return '';
+  const buttons = [];
+  if (b.review_status === 'pending') {
+    buttons.push('<button class="btn btn-success btn-block" onclick="decideAndClose(\'' + b.id + '\',\'approved\')">승인</button>');
+    buttons.push('<button class="btn btn-danger btn-block" onclick="decideAndClose(\'' + b.id + '\',\'rejected\')">반려</button>');
+  } else {
+    buttons.push('<button class="btn btn-block" onclick="decideAndClose(\'' + b.id + '\',\'pending\')">결정 취소</button>');
+  }
+  return buttons.join('');
+}
+async function decideAndClose(id, decision) {
+  closeAllSheets();
+  if (decision === 'pending') {
+    await sb.from('brands').update({ review_status: 'pending', decided_by: null, decided_by_name: null, decided_at: null }).eq('id', id);
+    toast('결정 취소됨');
+    renderBrands();
+  } else {
+    await decide(id, decision);
+  }
+}
+
+// ============ Dashboard ============
+async function loadDashboard() {
+  try {
+    const [tot, pend, app, rej] = await Promise.all([
+      sb.from('brands').select('id', { count: 'exact', head: true }),
+      sb.from('brands').select('id', { count: 'exact', head: true }).eq('review_status', 'pending'),
+      sb.from('brands').select('id', { count: 'exact', head: true }).eq('review_status', 'approved'),
+      sb.from('brands').select('id', { count: 'exact', head: true }).eq('review_status', 'rejected'),
+    ]);
+    $('dash-stats').innerHTML =
+      '<div class="dash-card"><div class="lbl">전체 브랜드</div><div class="val">' + fmtInt(tot.count) + '</div></div>' +
+      '<div class="dash-card pending"><div class="lbl">대기중</div><div class="val">' + fmtInt(pend.count) + '</div></div>' +
+      '<div class="dash-card approved"><div class="lbl">승인</div><div class="val">' + fmtInt(app.count) + '</div></div>' +
+      '<div class="dash-card rejected"><div class="lbl">반려</div><div class="val">' + fmtInt(rej.count) + '</div></div>';
+    // Team stats — only if user has permission
+    if (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.can_view_team_stats) {
+      const { data } = await sb.rpc('assignment_stats');
+      const rows = (data || []).map(r => {
+        const u = userMap[r.username] || {};
+        return '<div class="team-row">' +
+          '<div class="left"><div class="name">' + escapeHtml(u.name || r.username) + '</div><div class="role">' + (u.role || '') + '</div></div>' +
+          '<div class="stats">' +
+            '<div><span class="stat-num">' + fmtInt(r.assigned) + '</span><br><span class="muted" style="font-size:10px">할당</span></div>' +
+            '<div><span class="stat-num stat-pending">' + fmtInt(r.pending) + '</span><br><span class="muted" style="font-size:10px">대기</span></div>' +
+            '<div><span class="stat-num stat-approved">' + fmtInt(r.approved) + '</span><br><span class="muted" style="font-size:10px">승인</span></div>' +
+            '<div><span class="stat-num stat-rejected">' + fmtInt(r.rejected) + '</span><br><span class="muted" style="font-size:10px">반려</span></div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+      $('team-list').innerHTML = rows || '<div class="muted" style="text-align:center;padding:20px">팀원 데이터 없음</div>';
+    } else {
+      $('team-list').innerHTML = '<div class="muted" style="text-align:center;padding:20px">권한 없음</div>';
+    }
+  } catch(e) { console.warn(e); }
+}
+
+// ============ Upload ============
+function handleFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  uploadCsv(file);
+}
+async function uploadCsv(file) {
+  if (!canUpload(currentUser)) { toast('업로드 권한 없음', 'error'); return; }
+  const res = $('upload-result');
+  res.className = 'upload-result show';
+  res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">읽는 중...</div><div class="progress-bar"><div class="progress-fill" style="width:5%"></div></div>';
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) { res.className = 'upload-result show error'; res.innerHTML = '파일이 비어있음'; return; }
+  const headers = lines[0].split(',').map(s => s.replace(/^"|"$/g,'').trim());
+  const records = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    if (cells.length < 2) continue;
+    const row = {};
+    headers.forEach((h, j) => row[h] = cells[j] || '');
+    records.push(row);
+  }
+  res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">총 ' + records.length + '개 업로드 시작...</div><div class="progress-bar"><div class="progress-fill" id="up-fill" style="width:5%"></div></div><div class="progress-meta"><span id="up-status">0%</span><span id="up-counts">0 / ' + records.length + '</span></div>';
+  // Map columns
+  const mapped = records.map(r => ({
+    domain: r['Domain'] || r['domain'] || '',
+    domain_url: r['Domain URL'] || r['domain_url'] || '',
+    company_location: r['Location'] || r['Address'] || r['company_location'] || '',
+    city: r['City'] || r['city'] || '',
+    country_code: r['Country Code'] || r['country_code'] || r['Country'] || '',
+    categories: r['Industry'] || r['Categories'] || r['categories'] || '',
+    plan: r['Platform'] || r['plan'] || '',
+    average_product_price_usd: r['Avg Product Price (USD)'] || '',
+    emails: r['Email'] || r['emails'] || '',
+    phones: r['Phone'] || r['phones'] || '',
+    instagram: r['Instagram'] || '',
+    instagram_url: r['Instagram URL'] || '',
+    instagram_followers: r['Instagram Followers'] ? parseInt(r['Instagram Followers']) || null : null,
+    tiktok: r['TikTok'] || '',
+    tiktok_followers: r['TikTok Followers'] ? parseInt(r['TikTok Followers']) || null : null,
+    linkedin_account: r['LinkedIn'] || '',
+    linkedin_url: r['LinkedIn URL'] || '',
+    youtube: r['YouTube'] || '',
+    youtube_followers: r['YouTube Followers'] ? parseInt(r['YouTube Followers']) || null : null,
+    twitter: r['X (Twitter)'] || r['Twitter'] || '',
+    twitter_followers: r['X Followers'] ? parseInt(r['X Followers']) || null : null,
+    facebook: r['Facebook'] || '',
+    pinterest: r['Pinterest'] || '',
+    pinterest_followers: r['Pinterest Followers'] ? parseInt(r['Pinterest Followers']) || null : null,
+  })).filter(r => r.domain);
+  // Upload in chunks
+  const CHUNK = 200;
+  let done = 0, errCount = 0;
+  for (let i = 0; i < mapped.length; i += CHUNK) {
+    const slice = mapped.slice(i, i + CHUNK);
+    const { error } = await sb.from('brands').upsert(slice, { onConflict: 'domain' });
+    if (error) { errCount++; console.warn(error); }
+    done += slice.length;
+    const pct = Math.round(100 * done / mapped.length);
+    $('up-fill').style.width = pct + '%';
+    $('up-status').textContent = pct + '%';
+    $('up-counts').textContent = done + ' / ' + mapped.length;
+  }
+  if (errCount) {
+    res.className = 'upload-result show error';
+    res.innerHTML = '일부 에러: ' + errCount + ' chunks. 다시 시도해주세요.';
+  } else {
+    res.className = 'upload-result show success';
+    res.innerHTML = '<b>완료</b> · ' + mapped.length + '개 업로드/업데이트됨';
+    toast('업로드 완료', 'success');
+  }
+  $('file-input').value = '';
+}
+function parseCsvLine(line) {
+  const out = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// ============ Activity log ============
+async function openLog() {
+  openSheet('log-sheet');
+  $('log-list').innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+  const { data } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
+  if (!data || !data.length) {
+    $('log-list').innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>활동 내역 없음</div></div>';
+    return;
+  }
+  $('log-list').innerHTML = data.map(r => {
+    const u = profilesCache.find(p => p.id === r.user_id);
+    const ts = formatDate(r.created_at);
+    const action = ({
+      'brand_create': '브랜드 생성',
+      'brand_update': '브랜드 수정',
+      'brand_delete': '브랜드 삭제',
+      'brand_assign': '브랜드 할당',
+      'brand_decide': '결정',
+      'brand_bulk_assign': '일괄 할당',
+    })[r.action_type] || r.action_type;
+    return '<div class="log-card">' +
+      '<div class="log-time">' + ts + ' · ' + escapeHtml((u && u.name) || '시스템') + '</div>' +
+      '<div class="log-action"><b>' + action + '</b> · ' + escapeHtml(r.summary || '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function openDesktop() {
+  location.href = '/?desktop=1';
+}
+
+// ============ Pull to refresh ============
+let _pullStart = 0, _pulling = false;
+$('view-container').addEventListener('touchstart', e => {
+  if ($('view-container').scrollTop <= 0) {
+    _pullStart = e.touches[0].clientY;
+    _pulling = true;
+  }
+}, { passive: true });
+$('view-container').addEventListener('touchmove', e => {
+  if (!_pulling) return;
+  const dy = e.touches[0].clientY - _pullStart;
+  if (dy > 80) {
+    _pulling = false;
+    if (currentView === 'brands') { renderBrands(); }
+    else if (currentView === 'dashboard') { loadDashboard(); }
+  }
+}, { passive: true });
+$('view-container').addEventListener('touchend', () => { _pulling = false; });
+
+// ============ Init ============
+(async () => {
+  const { data: { user } } = await sb.auth.getUser();
+  if (user) await afterLogin();
+  else showLogin();
+})();
+
+// Handle back button -> close sheets
+window.addEventListener('popstate', () => closeAllSheets());
+</script>
+</body>
+</html>
