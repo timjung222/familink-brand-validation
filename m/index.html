@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#5e6ad2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Familink â€” Mobile</title>
+<title>Familink — Mobile</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d1d1f'/><circle cx='16' cy='22' r='3' fill='%23d93b3b'/><rect x='13.5' y='8' width='5' height='9' rx='1' fill='%23f4f4f5'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -357,16 +357,16 @@
         <text x="92" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">NK</text>
       </svg>
     </div>
-    <div class="login-sub">ë¸Œëžœë“œ ê²€í†  Â· ëª¨ë°”ì¼</div>
+    <div class="login-sub">브랜드 검토 · 모바일</div>
     <div class="form-group">
-      <label>ì´ë©”ì¼</label>
+      <label>이메일</label>
       <input id="login-email" type="email" autocomplete="email" autocapitalize="none" inputmode="email" placeholder="you@example.com">
     </div>
     <div class="form-group">
-      <label>ë¹„ë°€ë²ˆí˜¸</label>
-      <input id="login-password" type="password" autocomplete="current-password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢">
+      <label>비밀번호</label>
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••">
     </div>
-    <button class="btn btn-primary btn-block" onclick="doLogin()">ë¡œê·¸ì¸</button>
+    <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
@@ -374,12 +374,12 @@
 <!-- ============ APP ============ -->
 <div class="app" id="app">
   <header class="topbar">
-    <div class="topbar-title" id="topbar-title">ë¸Œëžœë“œ</div>
+    <div class="topbar-title" id="topbar-title">브랜드</div>
     <div class="topbar-actions">
-      <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" aria-label="í…Œë§ˆ">
+      <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" aria-label="테마">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
       </button>
-      <button class="icon-btn" id="filter-btn" onclick="openFilters()" aria-label="í•„í„°">
+      <button class="icon-btn" id="filter-btn" onclick="openFilters()" aria-label="필터">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
       </button>
     </div>
@@ -390,7 +390,7 @@
     <!-- ===== BRANDS VIEW ===== -->
     <div class="view active" data-view="brands" id="view-brands">
       <div class="stats-strip" id="stats-strip"></div>
-      <div class="search-wrap"><input id="search" type="search" placeholder="ë„ë©”ì¸, ì¹´í…Œê³ ë¦¬ ê²€ìƒ‰..." enterkeyhint="search"></div>
+      <div class="search-wrap"><input id="search" type="search" placeholder="도메인, 카테고리 검색..." enterkeyhint="search"></div>
       <div class="filter-bar" id="filter-bar"></div>
       <div class="card-list" id="card-list">
         <div class="loading-state"><div class="spinner"></div></div>
@@ -402,7 +402,7 @@
     <div class="view" data-view="dashboard" id="view-dashboard">
       <div class="dash-stats" id="dash-stats"></div>
       <div class="dash-section">
-        <h3>íŒ€ì›ë³„ ì²˜ë¦¬ í˜„í™©</h3>
+        <h3>팀원별 처리 현황</h3>
         <div class="team-list" id="team-list"></div>
       </div>
     </div>
@@ -411,10 +411,10 @@
     <div class="view" data-view="upload" id="view-upload">
       <div class="upload-wrap">
         <div class="dropzone" id="dropzone">
-          <div class="icon">ðŸ“</div>
-          <div style="font-weight:600;font-size:15px;margin-bottom:4px">CSV ì—…ë¡œë“œ</div>
-          <div style="color:var(--text-dim);font-size:12.5px;margin-bottom:12px">íƒ­í•´ì„œ íŒŒì¼ ì„ íƒ</div>
-          <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">íŒŒì¼ ì„ íƒ</button>
+          <div class="icon">📁</div>
+          <div style="font-weight:600;font-size:15px;margin-bottom:4px">CSV 업로드</div>
+          <div style="color:var(--text-dim);font-size:12.5px;margin-bottom:12px">탭해서 파일 선택</div>
+          <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">파일 선택</button>
         </div>
         <input id="file-input" type="file" accept=".csv" style="display:none" onchange="handleFile(event)">
         <div class="upload-result" id="upload-result"></div>
@@ -434,17 +434,17 @@
       <div class="more-list">
         <button class="more-item" onclick="openLog()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="m19 6-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
-          <span class="lbl">í™œë™ ë¡œê·¸</span>
+          <span class="lbl">활동 로그</span>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
         <button class="more-item" onclick="openDesktop()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-          <span class="lbl">PC ë²„ì „ìœ¼ë¡œ ë³´ê¸°</span>
+          <span class="lbl">PC 버전으로 보기</span>
           <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
         <button class="more-item" onclick="doLogout()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-          <span class="lbl" style="color: var(--danger)">ë¡œê·¸ì•„ì›ƒ</span>
+          <span class="lbl" style="color: var(--danger)">로그아웃</span>
         </button>
       </div>
     </div>
@@ -454,19 +454,19 @@
   <nav class="bottom-nav">
     <button class="nav-item active" data-nav="brands" onclick="switchView('brands')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-      <span>ë¸Œëžœë“œ</span>
+      <span>브랜드</span>
     </button>
     <button class="nav-item" data-nav="dashboard" onclick="switchView('dashboard')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-      <span>ëŒ€ì‹œë³´ë“œ</span>
+      <span>대시보드</span>
     </button>
     <button class="nav-item" data-nav="upload" onclick="switchView('upload')" id="nav-upload">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-      <span>ì—…ë¡œë“œ</span>
+      <span>업로드</span>
     </button>
     <button class="nav-item" data-nav="more" onclick="switchView('more')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
-      <span>ë”ë³´ê¸°</span>
+      <span>더보기</span>
     </button>
   </nav>
 </div>
@@ -476,8 +476,8 @@
 
 <div class="detail-sheet full" id="detail-sheet">
   <div class="sheet-header">
-    <div class="sheet-title" id="detail-title">â€”</div>
-    <button class="sheet-close" onclick="closeAllSheets()" aria-label="ë‹«ê¸°">
+    <div class="sheet-title" id="detail-title">—</div>
+    <button class="sheet-close" onclick="closeAllSheets()" aria-label="닫기">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
   </div>
@@ -488,44 +488,44 @@
 <div class="filter-sheet" id="filter-sheet">
   <div class="sheet-handle"></div>
   <div class="sheet-header">
-    <div class="sheet-title">í•„í„°</div>
+    <div class="sheet-title">필터</div>
     <button class="sheet-close" onclick="closeAllSheets()">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
   </div>
   <div class="sheet-body">
     <div class="filter-group">
-      <h4>ìƒíƒœ</h4>
+      <h4>상태</h4>
       <div class="chip-wrap" id="filter-status-chips">
-        <button class="chip active" data-status="">ì „ì²´</button>
-        <button class="chip" data-status="pending">ëŒ€ê¸°ì¤‘</button>
-        <button class="chip" data-status="approved">ìŠ¹ì¸</button>
-        <button class="chip" data-status="rejected">ë°˜ë ¤</button>
+        <button class="chip active" data-status="">전체</button>
+        <button class="chip" data-status="pending">대기중</button>
+        <button class="chip" data-status="approved">승인</button>
+        <button class="chip" data-status="rejected">반려</button>
       </div>
     </div>
     <div class="filter-group">
-      <h4>êµ­ê°€</h4>
-      <select id="filter-country"><option value="">ì „ì²´ êµ­ê°€</option></select>
+      <h4>국가</h4>
+      <select id="filter-country"><option value="">전체 국가</option></select>
     </div>
     <div class="filter-group">
-      <h4>ì¹´í…Œê³ ë¦¬</h4>
-      <select id="filter-category"><option value="">ì „ì²´ ì¹´í…Œê³ ë¦¬</option></select>
+      <h4>카테고리</h4>
+      <select id="filter-category"><option value="">전체 카테고리</option></select>
     </div>
     <div class="filter-group" id="filter-assignee-wrap">
-      <h4>ë‹´ë‹¹ìž</h4>
-      <select id="filter-assignee"><option value="">ì „ì²´ ë‹´ë‹¹ìž</option></select>
+      <h4>담당자</h4>
+      <select id="filter-assignee"><option value="">전체 담당자</option></select>
     </div>
   </div>
   <div class="sheet-footer">
-    <button class="btn btn-block" onclick="resetFilters()">ì´ˆê¸°í™”</button>
-    <button class="btn btn-primary btn-block" onclick="applyFilters()">ì ìš©</button>
+    <button class="btn btn-block" onclick="resetFilters()">초기화</button>
+    <button class="btn btn-primary btn-block" onclick="applyFilters()">적용</button>
   </div>
 </div>
 
 <!-- Activity log sheet -->
 <div class="detail-sheet full" id="log-sheet">
   <div class="sheet-header">
-    <div class="sheet-title">í™œë™ ë¡œê·¸</div>
+    <div class="sheet-title">활동 로그</div>
     <button class="sheet-close" onclick="closeAllSheets()">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
@@ -535,7 +535,7 @@
   </div>
 </div>
 
-<div class="toast" id="toast">ë©”ì‹œì§€</div>
+<div class="toast" id="toast">메시지</div>
 
 <script>
 // ============================================================
@@ -609,8 +609,8 @@ function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
 async function doLogin() {
   const email = $('login-email').value.trim();
   const password = $('login-password').value;
-  if (!email || !password) { $('login-error').textContent = 'ì´ë©”ì¼/ë¹„ë°€ë²ˆí˜¸ ìž…ë ¥'; return; }
-  $('login-error').textContent = 'ë¡œê·¸ì¸ ì¤‘...';
+  if (!email || !password) { $('login-error').textContent = '이메일/비밀번호 입력'; return; }
+  $('login-error').textContent = '로그인 중...';
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) { $('login-error').textContent = error.message; return; }
   $('login-error').textContent = '';
@@ -625,7 +625,7 @@ async function afterLogin() {
   if (!user) { showLogin(); return; }
   // Load profile
   const { data: prof } = await sb.from('profiles').select('*').eq('id', user.id).single();
-  if (!prof) { toast('í”„ë¡œí•„ ì—†ìŒ', 'error'); return; }
+  if (!prof) { toast('프로필 없음', 'error'); return; }
   currentUser = prof;
   // Load all profiles for userMap
   const { data: all } = await sb.from('profiles').select('*');
@@ -662,7 +662,7 @@ function switchView(v) {
   currentView = v;
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.dataset.view === v));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.nav === v));
-  const titles = { brands: 'ë¸Œëžœë“œ', dashboard: 'ëŒ€ì‹œë³´ë“œ', upload: 'ì—…ë¡œë“œ', more: 'ë”ë³´ê¸°' };
+  const titles = { brands: '브랜드', dashboard: '대시보드', upload: '업로드', more: '더보기' };
   $('topbar-title').textContent = titles[v];
   $('filter-btn').style.display = (v === 'brands') ? '' : 'none';
   if (v === 'dashboard') loadDashboard();
@@ -683,7 +683,7 @@ function openFilters() {
   // Populate assignee dropdown
   const sel = $('filter-assignee');
   const teams = profilesCache.filter(u => u.role === 'team');
-  sel.innerHTML = '<option value="">ì „ì²´ ë‹´ë‹¹ìž</option><option value="__unassigned">ë¯¸í• ë‹¹</option>' +
+  sel.innerHTML = '<option value="">전체 담당자</option><option value="__unassigned">미할당</option>' +
     teams.map(u => '<option value="' + escapeAttr(u.username) + '">' + escapeHtml(u.name) + '</option>').join('');
   sel.value = currentFilters.assignee;
   if (currentUser.role === 'team') $('filter-assignee-wrap').style.display = 'none';
@@ -719,8 +719,8 @@ async function loadDistinctFilters() {
     ]);
     const c = (countries.data || []).map(r => r.country_code).filter(Boolean);
     const cat = (categories.data || []).map(r => r.cat).filter(Boolean);
-    $('filter-country').innerHTML = '<option value="">ì „ì²´ êµ­ê°€</option>' + c.map(x => '<option value="' + escapeAttr(x) + '">' + escapeHtml(x) + '</option>').join('');
-    $('filter-category').innerHTML = '<option value="">ì „ì²´ ì¹´í…Œê³ ë¦¬</option>' + cat.map(x => '<option value="' + escapeAttr(x) + '">' + escapeHtml(x) + '</option>').join('');
+    $('filter-country').innerHTML = '<option value="">전체 국가</option>' + c.map(x => '<option value="' + escapeAttr(x) + '">' + escapeHtml(x) + '</option>').join('');
+    $('filter-category').innerHTML = '<option value="">전체 카테고리</option>' + cat.map(x => '<option value="' + escapeAttr(x) + '">' + escapeHtml(x) + '</option>').join('');
     _distinctCache = { countries: c, categories: cat };
   } catch(e) { console.warn(e); }
   return _distinctCache;
@@ -729,10 +729,10 @@ async function loadDistinctFilters() {
 // ============ Filter chips on main view ============
 function renderFilterBar() {
   const all = [
-    { status: '', label: 'ì „ì²´' },
-    { status: 'pending', label: 'ëŒ€ê¸°ì¤‘' },
-    { status: 'approved', label: 'ìŠ¹ì¸' },
-    { status: 'rejected', label: 'ë°˜ë ¤' },
+    { status: '', label: '전체' },
+    { status: 'pending', label: '대기중' },
+    { status: 'approved', label: '승인' },
+    { status: 'rejected', label: '반려' },
   ];
   $('filter-bar').innerHTML = all.map(f =>
     '<button class="chip ' + (currentFilters.status === f.status ? 'active' : '') + '" onclick="setStatusFilter(\'' + f.status + '\')">' + f.label + '</button>'
@@ -810,10 +810,10 @@ async function renderStats() {
     const results = await Promise.all(queries);
     const [total, pending, approved, rejected] = results.map(r => r.count || 0);
     $('stats-strip').innerHTML =
-      '<div class="stat-mini" onclick="setStatusFilter(\'\')"><div class="lbl">ì „ì²´</div><div class="val">' + fmtInt(total) + '</div></div>' +
-      '<div class="stat-mini pending" onclick="setStatusFilter(\'pending\')"><div class="lbl">ëŒ€ê¸°</div><div class="val">' + fmtInt(pending) + '</div></div>' +
-      '<div class="stat-mini approved" onclick="setStatusFilter(\'approved\')"><div class="lbl">ìŠ¹ì¸</div><div class="val">' + fmtInt(approved) + '</div></div>' +
-      '<div class="stat-mini rejected" onclick="setStatusFilter(\'rejected\')"><div class="lbl">ë°˜ë ¤</div><div class="val">' + fmtInt(rejected) + '</div></div>';
+      '<div class="stat-mini" onclick="setStatusFilter(\'\')"><div class="lbl">전체</div><div class="val">' + fmtInt(total) + '</div></div>' +
+      '<div class="stat-mini pending" onclick="setStatusFilter(\'pending\')"><div class="lbl">대기</div><div class="val">' + fmtInt(pending) + '</div></div>' +
+      '<div class="stat-mini approved" onclick="setStatusFilter(\'approved\')"><div class="lbl">승인</div><div class="val">' + fmtInt(approved) + '</div></div>' +
+      '<div class="stat-mini rejected" onclick="setStatusFilter(\'rejected\')"><div class="lbl">반려</div><div class="val">' + fmtInt(rejected) + '</div></div>';
   } catch(e) { console.warn(e); }
 }
 
@@ -825,7 +825,7 @@ async function renderBrands() {
   brandsCache = data;
   totalCount = count;
   if (!data.length) {
-    $('card-list').innerHTML = '<div class="empty-state"><div class="icon">ðŸ“­</div><div>í‘œì‹œí•  ë¸Œëžœë“œ ì—†ìŒ</div></div>';
+    $('card-list').innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>표시할 브랜드 없음</div></div>';
     $('pager').innerHTML = '';
     return;
   }
@@ -833,29 +833,29 @@ async function renderBrands() {
   // Pager
   const totalPages = Math.ceil(count / PAGE_SIZE);
   $('pager').innerHTML =
-    '<button class="btn btn-sm" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goPage(' + (currentPage - 1) + ')">â€¹</button>' +
-    '<span class="page-info">' + currentPage + ' / ' + totalPages + ' Â· ì´ ' + fmtInt(count) + '</span>' +
-    '<button class="btn btn-sm" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goPage(' + (currentPage + 1) + ')">â€º</button>';
+    '<button class="btn btn-sm" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goPage(' + (currentPage - 1) + ')">‹</button>' +
+    '<span class="page-info">' + currentPage + ' / ' + totalPages + ' · 총 ' + fmtInt(count) + '</span>' +
+    '<button class="btn btn-sm" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goPage(' + (currentPage + 1) + ')">›</button>';
   // Bind swipe + tap on each card
   document.querySelectorAll('.brand-card').forEach(el => bindSwipe(el));
 }
 function goPage(p) { currentPage = Math.max(1, p); renderBrands(); $('view-container').scrollTo({ top: 0, behavior: 'smooth' }); }
 
 function renderBrandCard(b) {
-  const label = { pending: 'ëŒ€ê¸°ì¤‘', approved: 'ìŠ¹ì¸', rejected: 'ë°˜ë ¤' }[b.review_status];
+  const label = { pending: '대기중', approved: '승인', rejected: '반려' }[b.review_status];
   const cats = (b.categories || '').split(':').filter(Boolean).slice(0, 3).map(c => '<span class="cat-tag">' + escapeHtml(c.split('/').pop()) + '</span>').join('');
-  const dup = b.pending_update ? '<span class="dup-badge">ì¤‘ë³µ ì—…ë°ì´íŠ¸</span>' : '';
+  const dup = b.pending_update ? '<span class="dup-badge">중복 업데이트</span>' : '';
   const decideButtons = canDecide(currentUser) && b.review_status === 'pending'
     ? '<div class="card-actions">' +
-        '<button class="btn btn-success btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'approved\')">ìŠ¹ì¸</button>' +
-        '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'rejected\')">ë°˜ë ¤</button>' +
+        '<button class="btn btn-success btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'approved\')">승인</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'rejected\')">반려</button>' +
       '</div>'
     : '';
-  const swipeHint = canDecide(currentUser) && b.review_status === 'pending' ? '<div class="swipe-hint">â† ë°˜ë ¤ Â· ìŠ¹ì¸ â†’</div>' : '';
+  const swipeHint = canDecide(currentUser) && b.review_status === 'pending' ? '<div class="swipe-hint">← 반려 · 승인 →</div>' : '';
   return (
     '<div class="brand-card" data-id="' + b.id + '" data-status="' + b.review_status + '" onclick="openDetail(\'' + b.id + '\')">' +
-      '<div class="brand-card-bg left"><span class="icon">âœ“</span>ìŠ¹ì¸</div>' +
-      '<div class="brand-card-bg right">ë°˜ë ¤<span class="icon">âœ•</span></div>' +
+      '<div class="brand-card-bg left"><span class="icon">✓</span>승인</div>' +
+      '<div class="brand-card-bg right">반려<span class="icon">✕</span></div>' +
       '<div class="brand-card-content">' +
         '<div class="domain-row">' +
           '<div class="domain-text">' + escapeHtml(b.domain) + '</div>' +
@@ -863,8 +863,8 @@ function renderBrandCard(b) {
         '</div>' +
         '<div class="meta-row">' +
           (b.company_location ? '<span class="mini">' + escapeHtml(b.company_location) + '</span>' : '') +
-          (b.assigned_to ? '<span class="mini">Â· @' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</span>' : '') +
-          (dup ? 'Â· ' + dup : '') +
+          (b.assigned_to ? '<span class="mini">· @' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</span>' : '') +
+          (dup ? '· ' + dup : '') +
         '</div>' +
         (cats ? '<div class="cat-row">' + cats + '</div>' : '') +
         decideButtons +
@@ -931,7 +931,7 @@ async function commitSwipe(card, decision) {
   }, 250);
   await sb.from('brands').update({ review_status: decision, decided_by: currentUser.username, decided_by_name: currentUser.name, decided_at: new Date().toISOString() }).eq('id', id);
   setTimeout(() => renderStats(), 400);
-  toast(decision === 'approved' ? 'âœ“ ìŠ¹ì¸ë¨' : 'âœ• ë°˜ë ¤ë¨', decision === 'approved' ? 'success' : 'error');
+  toast(decision === 'approved' ? '✓ 승인됨' : '✕ 반려됨', decision === 'approved' ? 'success' : 'error');
 }
 
 async function decide(id, decision) {
@@ -939,7 +939,7 @@ async function decide(id, decision) {
   if (card) commitSwipe(card, decision);
   else {
     await sb.from('brands').update({ review_status: decision, decided_by: currentUser.username, decided_by_name: currentUser.name, decided_at: new Date().toISOString() }).eq('id', id);
-    toast(decision === 'approved' ? 'âœ“ ìŠ¹ì¸ë¨' : 'âœ• ë°˜ë ¤ë¨', decision === 'approved' ? 'success' : 'error');
+    toast(decision === 'approved' ? '✓ 승인됨' : '✕ 반려됨', decision === 'approved' ? 'success' : 'error');
     renderBrands();
   }
 }
@@ -956,7 +956,7 @@ async function openDetail(id) {
 function renderDetailContent(b) {
   const cats = (b.categories || '').split(':').filter(Boolean).map(c => '<span class="cat-tag">' + escapeHtml(c) + '</span>').join('');
   const socials = [];
-  if (b.instagram) socials.push({ cls:'ig', name:'Instagram', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.3 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .3-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.3-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.3 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 5.8.1 5 .3 4.2.6c-.8.3-1.5.7-2.2 1.4C1.3 2.7.9 3.4.6 4.2.3 5 .1 5.8.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.1 1.3.3 2.1.6 2.9.3.8.7 1.5 1.4 2.2.7.7 1.4 1.1 2.2 1.4.8.3 1.6.5 2.9.6C8.3 24 8.7 24 12 24s3.7 0 4.9-.1c1.3-.1 2.1-.3 2.9-.6.8-.3 1.5-.7 2.2-1.4.7-.7 1.1-1.4 1.4-2.2.3-.8.5-1.6 ¶-2.9.1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.1-1.3-.3-2.1-.6-2.9-.3-.8-.7-1.5-1.4-2.2C20.3 1.3 19.6.9 18.8.6 18 .3 17.2.1 15.9.1 14.7 0 14.3 0 12 0zm0 5.8c-3.4 0-6.2 2.8-6.2 6.2s2.8 6.2 6.2 6.2 6.2-2.8 6.2-6.2-2.8-6.2-6.2-6.2zm0 10.2c-2.2 0-4-1.8-4-4s1.8-4 4-4 4 1.8 4 4-1.8 4-4 4zm6.4-10.4c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4 1.4-.6 1.4-1.4-.6-1.4-1.4-1.4z"/></svg>', handle:'@'+b.instagram, url: b.instagram_url || ('https://instagram.com/' + b.instagram), followers: b.instagram_followers });
+  if (b.instagram) socials.push({ cls:'ig', name:'Instagram', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.3 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .3-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.3-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.3 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 5.8.1 5 .3 4.2.6c-.8.3-1.5.7-2.2 1.4C1.3 2.7.9 3.4.6 4.2.3 5 .1 5.8.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.1 1.3.3 2.1.6 2.9.3.8.7 1.5 1.4 2.2.7.7 1.4 1.1 2.2 1.4.8.3 1.6.5 2.9.6C8.3 24 8.7 24 12 24s3.7 0 4.9-.1c1.3-.1 2.1-.3 2.9-.6.8-.3 1.5-.7 2.2-1.4.7-.7 1.1-1.4 1.4-2.2.3-.8.5-1.6 �-2.9.1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.1-1.3-.3-2.1-.6-2.9-.3-.8-.7-1.5-1.4-2.2C20.3 1.3 19.6.9 18.8.6 18 .3 17.2.1 15.9.1 14.7 0 14.3 0 12 0zm0 5.8c-3.4 0-6.2 2.8-6.2 6.2s2.8 6.2 6.2 6.2 6.2-2.8 6.2-6.2-2.8-6.2-6.2-6.2zm0 10.2c-2.2 0-4-1.8-4-4s1.8-4 4-4 4 1.8 4 4-1.8 4-4 4zm6.4-10.4c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4 1.4-.6 1.4-1.4-.6-1.4-1.4-1.4z"/></svg>', handle:'@'+b.instagram, url: b.instagram_url || ('https://instagram.com/' + b.instagram), followers: b.instagram_followers });
   if (b.linkedin_account) socials.push({ cls:'li', name:'LinkedIn', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 0H5C2.2 0 0 2.2 0 5v14c0 2.8 2.2 5 5 5h14c2.8 0 5-2.2 5-5V5c0-2.8-2.2-5-5-5zM7.1 20H3.6V8.5h3.5V20zM5.3 7c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 20h-3.5v-5.7c0-1.4-.5-2.3-1.7-2.3-.9 0-1.4.6-1.7 1.3-.1.2-.1.5-.1.9V20H9.5V8.5H13v1.5c.5-.7 1.2-1.8 2.9-1.8 2.1 0 3.7 1.4 3.7 4.3V20z"/></svg>', handle:b.linkedin_account, url: b.linkedin_url || ('https://linkedin.com/company/' + b.linkedin_account), followers: null });
   if (b.tiktok) socials.push({ cls:'tt', name:'TikTok', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.6 5.2c-1.4 0-2.7-.7-3.4-1.9-.3-.5-.5-1-.5-1.6V1H12v15.4c0 1.6-1.3 2.9-2.9 2.9s-2.9-1.3-2.9-2.9 1.3-2.9 2.9-2.9c.3 0 .6 0 .9.1V9.9c-.3 0-.6-.1-.9-.1-3.7 0-6.6 3-6.6 6.6s3 6.6 6.6 6.6 6.6-3 6.6-6.6V9.3c1.4 1 3.1 1.6 4.9 1.6V7.2c-.3 0-.6-.1-.9-.1-.4-.5-1.1-1.4-1.1-1.9z"/></svg>', handle:b.tiktok, url:'https://tiktok.com/' + b.tiktok, followers: b.tiktok_followers });
   if (b.youtube) socials.push({ cls:'yt', name:'YouTube', icon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2s-.2-1.6-1-2.3c-.9-1-1.9-1-2.4-1C16.8 2.5 12 2.5 12 2.5s-4.8 0-8.1.4c-.5 0-1.5.1-2.4 1-.7.7-1 2.3-1 2.3S0 8 0 9.9v1.8C0 13.6.2 15.5.2 15.5s.2 1.6 1 2.3c.9 1 2.2.9 2.8 1 2 .2 8 .3 8 .3s4.8 0 8.1-.4c.5 0 1.5-.1 2.4-1 .7-.7 1-2.3 1-2.3S24 13.6 24 11.7V9.9c0-1.9-.5-3.7-.5-3.7zM9.5 14.5V7.8l6.5 3.4-6.5 3.3z"/></svg>', handle:b.youtube, url:'https://youtube.com/' + b.youtube, followers: b.youtube_followers });
@@ -969,7 +969,7 @@ function renderDetailContent(b) {
       '<div class="body"><div class="platform">' + s.name + '</div><div class="handle">' + escapeHtml(s.handle) + '</div></div>' +
       (s.followers ? '<div class="followers">' + formatNum(s.followers) + '</div>' : '') +
     '</a>'
-  )).join('') + '</div>' : '<div class="muted" style="text-align:center;padding:8px">SNS ì •ë³´ ì—†ìŒ</div>';
+  )).join('') + '</div>' : '<div class="muted" style="text-align:center;padding:8px">SNS 정보 없음</div>';
   // Contacts (only for admin/appointment_setter)
   let contactHtml = '';
   const canSeeContacts = currentUser.role === 'admin' || currentUser.role === 'appointment_setter';
@@ -979,18 +979,18 @@ function renderDetailContent(b) {
     const rows = [];
     emails.forEach(em => rows.push('<a class="contact-chip" href="mailto:' + escapeAttr(em) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>' + escapeHtml(em) + '</a>'));
     phones.forEach(ph => rows.push('<a class="contact-chip" href="tel:' + escapeAttr(ph) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' + escapeHtml(ph) + '</a>'));
-    if (rows.length) contactHtml = '<div class="detail-section"><h4>ì—°ë½ì²˜</h4><div class="contact-row">' + rows.join('') + '</div></div>';
+    if (rows.length) contactHtml = '<div class="detail-section"><h4>연락처</h4><div class="contact-row">' + rows.join('') + '</div></div>';
   }
   return (
-    '<div class="detail-section"><h4>ê¸°ë³¸ ì •ë³´</h4><div class="info-grid">' +
-      '<div class="info-card"><div class="lbl">ë„ë©”ì¸</div><div class="val"><a href="' + escapeAttr(b.domain_url || ('https://' + b.domain)) + '" target="_blank" rel="noopener">' + escapeHtml(b.domain) + '</a></div></div>' +
-      '<div class="info-card"><div class="lbl">ìƒíƒœ</div><div class="val"><span class="status-badge status-' + b.review_status + '">' + ({pending:'ëŒ€ê¸°ì¤‘',approved:'ìŠ¹ì¸',rejected:'ë°˜ë ¤'})[b.review_status] + '</span></div></div>' +
-      (b.company_location ? '<div class="info-card full"><div class="lbl">ìœ„ì¹˜</div><div class="val">' + escapeHtml(b.company_location) + '</div></div>' : '') +
-      (cats ? '<div class="info-card full"><div class="lbl">ì¹´í…Œê³ ë¦¬</div><div class="val">' + cats + '</div></div>' : '') +
-      (b.average_product_price_usd ? '<div class="info-card"><div class="lbl">í‰ê· ê°€</div><div class="val">' + escapeHtml(b.average_product_price_usd) + '</div></div>' : '') +
-      (b.plan || b.platform ? '<div class="info-card"><div class="lbl">í”Œëž«í¼</div><div class="val">' + escapeHtml(b.plan || b.platform) + '</div></div>' : '') +
-      (b.assigned_to ? '<div class="info-card"><div class="lbl">ë‹´ë‹¹ìž</div><div class="val">' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</div></div>' : '') +
-      (b.decided_by ? '<div class="info-card"><div class="lbl">ê²°ì •ìž</div><div class="val">' + escapeHtml(b.decided_by_name || (userMap[b.decided_by] && userMap[b.decided_by].name) || b.decided_by) + '<br><span class="muted" style="font-size:11px">' + formatDate(b.decided_at) + '</span></div></div>' : '') +
+    '<div class="detail-section"><h4>기본 정보</h4><div class="info-grid">' +
+      '<div class="info-card"><div class="lbl">도메인</div><div class="val"><a href="' + escapeAttr(b.domain_url || ('https://' + b.domain)) + '" target="_blank" rel="noopener">' + escapeHtml(b.domain) + '</a></div></div>' +
+      '<div class="info-card"><div class="lbl">상태</div><div class="val"><span class="status-badge status-' + b.review_status + '">' + ({pending:'대기중',approved:'승인',rejected:'반려'})[b.review_status] + '</span></div></div>' +
+      (b.company_location ? '<div class="info-card full"><div class="lbl">위치</div><div class="val">' + escapeHtml(b.company_location) + '</div></div>' : '') +
+      (cats ? '<div class="info-card full"><div class="lbl">카테고리</div><div class="val">' + cats + '</div></div>' : '') +
+      (b.average_product_price_usd ? '<div class="info-card"><div class="lbl">평균가</div><div class="val">' + escapeHtml(b.average_product_price_usd) + '</div></div>' : '') +
+      (b.plan || b.platform ? '<div class="info-card"><div class="lbl">플랫폼</div><div class="val">' + escapeHtml(b.plan || b.platform) + '</div></div>' : '') +
+      (b.assigned_to ? '<div class="info-card"><div class="lbl">담당자</div><div class="val">' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</div></div>' : '') +
+      (b.decided_by ? '<div class="info-card"><div class="lbl">결정자</div><div class="val">' + escapeHtml(b.decided_by_name || (userMap[b.decided_by] && userMap[b.decided_by].name) || b.decided_by) + '<br><span class="muted" style="font-size:11px">' + formatDate(b.decided_at) + '</span></div></div>' : '') +
     '</div></div>' +
     '<div class="detail-section"><h4>SNS</h4>' + socialHtml + '</div>' +
     contactHtml
@@ -1000,10 +1000,10 @@ function renderDetailActions(b) {
   if (!canDecide(currentUser)) return '';
   const buttons = [];
   if (b.review_status === 'pending') {
-    buttons.push('<button class="btn btn-success btn-block" onclick="decideAndClose(\'' + b.id + '\',\'approved\')">ìŠ¹ì¸</button>');
-    buttons.push('<button class="btn btn-danger btn-block" onclick="decideAndClose(\'' + b.id + '\',\'rejected\')">ë°˜ë ¤</button>');
+    buttons.push('<button class="btn btn-success btn-block" onclick="decideAndClose(\'' + b.id + '\',\'approved\')">승인</button>');
+    buttons.push('<button class="btn btn-danger btn-block" onclick="decideAndClose(\'' + b.id + '\',\'rejected\')">반려</button>');
   } else {
-    buttons.push('<button class="btn btn-block" onclick="decideAndClose(\'' + b.id + '\',\'pending\')">ê²°ì • ì·¨ì†Œ</button>');
+    buttons.push('<button class="btn btn-block" onclick="decideAndClose(\'' + b.id + '\',\'pending\')">결정 취소</button>');
   }
   return buttons.join('');
 }
@@ -1011,7 +1011,7 @@ async function decideAndClose(id, decision) {
   closeAllSheets();
   if (decision === 'pending') {
     await sb.from('brands').update({ review_status: 'pending', decided_by: null, decided_by_name: null, decided_at: null }).eq('id', id);
-    toast('ê²°ì • ì·¨ì†Œë¨');
+    toast('결정 취소됨');
     renderBrands();
   } else {
     await decide(id, decision);
@@ -1028,11 +1028,11 @@ async function loadDashboard() {
       sb.from('brands').select('id', { count: 'exact', head: true }).eq('review_status', 'rejected'),
     ]);
     $('dash-stats').innerHTML =
-      '<div class="dash-card"><div class="lbl">ì „ì²´ ë¸Œëžœë“œ</div><div class="val">' + fmtInt(tot.count) + '</div></div>' +
-      '<div class="dash-card pending"><div class="lbl">ëŒ€ê¸°ì¤‘</div><div class="val">' + fmtInt(pend.count) + '</div></div>' +
-      '<div class="dash-card approved"><div class="lbl">ìŠ¹ì¸</div><div class="val">' + fmtInt(app.count) + '</div></div>' +
-      '<div class="dash-card rejected"><div class="lbl">ë°˜ë ¤</div><div class="val">' + fmtInt(rej.count) + '</div></div>';
-    // Team stats â€” only if user has permission
+      '<div class="dash-card"><div class="lbl">전체 브랜드</div><div class="val">' + fmtInt(tot.count) + '</div></div>' +
+      '<div class="dash-card pending"><div class="lbl">대기중</div><div class="val">' + fmtInt(pend.count) + '</div></div>' +
+      '<div class="dash-card approved"><div class="lbl">승인</div><div class="val">' + fmtInt(app.count) + '</div></div>' +
+      '<div class="dash-card rejected"><div class="lbl">반려</div><div class="val">' + fmtInt(rej.count) + '</div></div>';
+    // Team stats — only if user has permission
     if (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.can_view_team_stats) {
       const { data } = await sb.rpc('assignment_stats');
       const rows = (data || []).map(r => {
@@ -1040,16 +1040,16 @@ async function loadDashboard() {
         return '<div class="team-row">' +
           '<div class="left"><div class="name">' + escapeHtml(u.name || r.username) + '</div><div class="role">' + (u.role || '') + '</div></div>' +
           '<div class="stats">' +
-            '<div><span class="stat-num">' + fmtInt(r.assigned) + '</span><br><span class="muted" style="font-size:10px">í• ë‹¹</span></div>' +
-            '<div><span class="stat-num stat-pending">' + fmtInt(r.pending) + '</span><br><span class="muted" style="font-size:10px">ëŒ€ê¸°</span></div>' +
-            '<div><span class="stat-num stat-approved">' + fmtInt(r.approved) + '</span><br><span class="muted" style="font-size:10px">ìŠ¹ì¸</span></div>' +
-            '<div><span class="stat-num stat-rejected">' + fmtInt(r.rejected) + '</span><br><span class="muted" style="font-size:10px">ë°˜ë ¤</span></div>' +
+            '<div><span class="stat-num">' + fmtInt(r.assigned) + '</span><br><span class="muted" style="font-size:10px">할당</span></div>' +
+            '<div><span class="stat-num stat-pending">' + fmtInt(r.pending) + '</span><br><span class="muted" style="font-size:10px">대기</span></div>' +
+            '<div><span class="stat-num stat-approved">' + fmtInt(r.approved) + '</span><br><span class="muted" style="font-size:10px">승인</span></div>' +
+            '<div><span class="stat-num stat-rejected">' + fmtInt(r.rejected) + '</span><br><span class="muted" style="font-size:10px">반려</span></div>' +
           '</div>' +
         '</div>';
       }).join('');
-      $('team-list').innerHTML = rows || '<div class="muted" style="text-align:center;padding:20px">íŒ€ì› ë°ì´í„° ì—†ìŒ</div>';
+      $('team-list').innerHTML = rows || '<div class="muted" style="text-align:center;padding:20px">팀원 데이터 없음</div>';
     } else {
-      $('team-list').innerHTML = '<div class="muted" style="text-align:center;padding:20px">ê¶Œí•œ ì—†ìŒ</div>';
+      $('team-list').innerHTML = '<div class="muted" style="text-align:center;padding:20px">권한 없음</div>';
     }
   } catch(e) { console.warn(e); }
 }
@@ -1061,13 +1061,13 @@ function handleFile(ev) {
   uploadCsv(file);
 }
 async function uploadCsv(file) {
-  if (!canUpload(currentUser)) { toast('ì—…ë¡œë“œ ê¶Œí•œ ì—†ìŒ', 'error'); return; }
+  if (!canUpload(currentUser)) { toast('업로드 권한 없음', 'error'); return; }
   const res = $('upload-result');
   res.className = 'upload-result show';
-  res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">ì½ëŠ” ì¤‘...</div><div class="progress-bar"><div class="progress-fill" style="width:5%"></div></div>';
+  res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">읽는 중...</div><div class="progress-bar"><div class="progress-fill" style="width:5%"></div></div>';
   const text = await file.text();
   const lines = text.split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) { res.className = 'upload-result show error'; res.innerHTML = 'íŒŒì¼ì´ ë¹„ì–´ìžˆìŒ'; return; }
+  if (lines.length < 2) { res.className = 'upload-result show error'; res.innerHTML = '파일이 비어있음'; return; }
   const headers = lines[0].split(',').map(s => s.replace(/^"|"$/g,'').trim());
   const records = [];
   for (let i = 1; i < lines.length; i++) {
@@ -1077,7 +1077,7 @@ async function uploadCsv(file) {
     headers.forEach((h, j) => row[h] = cells[j] || '');
     records.push(row);
   }
-  res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">ì´ ' + records.length + 'ê°œ ì—…ë¡œë“œ ì‹œìž‘...</div><div class="progress-bar"><div class="progress-fill" id="up-fill" style="width:5%"></div></div><div class="progress-meta"><span id="up-status">0%</span><span id="up-counts">0 / ' + records.length + '</span></div>';
+  res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">총 ' + records.length + '개 업로드 시작...</div><div class="progress-bar"><div class="progress-fill" id="up-fill" style="width:5%"></div></div><div class="progress-meta"><span id="up-status">0%</span><span id="up-counts">0 / ' + records.length + '</span></div>';
   // Map columns
   const mapped = records.map(r => ({
     domain: r['Domain'] || r['domain'] || '',
@@ -1120,11 +1120,11 @@ async function uploadCsv(file) {
   }
   if (errCount) {
     res.className = 'upload-result show error';
-    res.innerHTML = 'ì¼ë¶€ ì—ëŸ¬: ' + errCount + ' chunks. ë‹¤ì‹œ ì‹œë„í•´ì£¼ì„¸ìš”.';
+    res.innerHTML = '일부 에러: ' + errCount + ' chunks. 다시 시도해주세요.';
   } else {
     res.className = 'upload-result show success';
-    res.innerHTML = '<b>ì™„ë£Œ</b> Â· ' + mapped.length + 'ê°œ ì—…ë¡œë“œ/ì—…ë°ì´íŠ¸ë¨';
-    toast('ì—…ë¡œë“œ ì™„ë£Œ', 'success');
+    res.innerHTML = '<b>완료</b> · ' + mapped.length + '개 업로드/업데이트됨';
+    toast('업로드 완료', 'success');
   }
   $('file-input').value = '';
 }
@@ -1148,23 +1148,23 @@ async function openLog() {
   $('log-list').innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
   const { data } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).is('reverted_at', null).limit(50);
   if (!data || !data.length) {
-    $('log-list').innerHTML = '<div class="empty-state"><div class="icon">ðŸ“‹</div><div>í™œë™ ë‚´ì—­ ì—†ìŒ</div></div>';
+    $('log-list').innerHTML = '<div class="empty-state"><div class="icon">📋</div><div>활동 내역 없음</div></div>';
     return;
   }
   $('log-list').innerHTML = data.map(r => {
     const u = profilesCache.find(p => p.id === r.user_id);
     const ts = formatDate(r.created_at);
     const action = ({
-      'brand_create': 'ë¸Œëžœë“œ ìƒì„±',
-      'brand_update': 'ë¸Œëžœë“œ ìˆ˜ì •',
-      'brand_delete': 'ë¸Œëžœë“œ ì‚­ì œ',
-      'brand_assign': 'ë¸Œëžœë“œ í• ë‹¹',
-      'brand_decide': 'ê²°ì •',
-      'brand_bulk_assign': 'ì¼ê´„ í• ë‹¹',
+      'brand_create': '브랜드 생성',
+      'brand_update': '브랜드 수정',
+      'brand_delete': '브랜드 삭제',
+      'brand_assign': '브랜드 할당',
+      'brand_decide': '결정',
+      'brand_bulk_assign': '일괄 할당',
     })[r.action_type] || r.action_type;
     return '<div class="log-card">' +
-      '<div class="log-time">' + ts + ' Â· ' + escapeHtml((u && u.name) || 'ì‹œìŠ¤í…œ') + '</div>' +
-      '<div class="log-action"><b>' + action + '</b> Â· ' + escapeHtml(r.summary || '') + '</div>' +
+      '<div class="log-time">' + ts + ' · ' + escapeHtml((u && u.name) || '시스템') + '</div>' +
+      '<div class="log-action"><b>' + action + '</b> · ' + escapeHtml(r.summary || '') + '</div>' +
     '</div>';
   }).join('');
 }
