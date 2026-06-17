@@ -55,8 +55,12 @@
   .login-wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); z-index: 1000; }
   .login-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 32px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow); }
   .login-logo { display: flex; justify-content: center; margin-bottom: 8px; }
-  .login-logo svg { height: 36px; }
-  .login-sub { text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+  .login-logo svg { height: 40px; display: block; }
+  html[data-theme="dark"] .logo-letter { fill: #f4f4f5; }
+  html[data-theme="light"] .logo-letter { fill: #0f1115; }
+  .logo-letter { fill: #f4f4f5; }
+  .logo-dot { fill: #d93b3b; }
+  .login-sub { text-align: center; color: var(--text-dim); font-size: 13px; margin: 6px 0 24px; }
   .form-group { margin-bottom: 12px; }
   .form-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 6px; color: var(--text-2); }
   .form-group input { width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 16px; }
@@ -350,12 +354,7 @@
 <div class="login-wrap active" id="login-screen">
   <div class="login-card">
     <div class="login-logo">
-      <svg viewBox="0 0 220 38" xmlns="http://www.w3.org/2000/svg" aria-label="Familink">
-        <text x="0" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">FAM</text>
-        <text x="62" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">L</text>
-        <circle cx="86" cy="14" r="3" fill="#d93b3b"/>
-        <text x="92" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">NK</text>
-      </svg>
+      <svg viewBox="0 0 202 60" xmlns="http://www.w3.org/2000/svg" aria-label="Familink"><g class="logo-letter" font-family="Inter, sans-serif" font-weight="800" font-size="52" letter-spacing="-3"><text x="0" y="46">F</text><text x="36" y="46">M</text><text x="84" y="46">L</text></g><rect class="logo-letter" x="120" y="14" width="9" height="22" rx="1"/><circle class="logo-dot" cx="124.5" cy="46" r="5"/><g class="logo-letter" font-family="Inter, sans-serif" font-weight="800" font-size="52" letter-spacing="-3"><text x="134" y="46">N</text><text x="172" y="46">K</text></g></svg>
     </div>
     <div class="login-sub">브랜드 검토 — 모바일</div>
     <div class="form-group">
