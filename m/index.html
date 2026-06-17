@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#5e6ad2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Familink � Mobile</title>
+<title>Familink � Mobile</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d1d1f'/><circle cx='16' cy='22' r='3' fill='%23d93b3b'/><rect x='13.5' y='8' width='5' height='9' rx='1' fill='%23f4f4f5'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -357,14 +357,14 @@
         <text x="92" y="28" font-family="Inter" font-weight="800" font-size="26" fill="var(--text)" letter-spacing="-1">NK</text>
       </svg>
     </div>
-    <div class="login-sub">브랜드 검토 � 모바일</div>
+    <div class="login-sub">브랜드 검토 � 모바일</div>
     <div class="form-group">
       <label>이메일</label>
       <input id="login-email" type="email" autocomplete="email" autocapitalize="none" inputmode="email" placeholder="you@example.com">
     </div>
     <div class="form-group">
       <label>비밀번호</label>
-      <input id="login-password" type="password" autocomplete="current-password" placeholder="��������">
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="��������">
     </div>
     <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
     <div class="login-error" id="login-error"></div>
@@ -476,7 +476,7 @@
 
 <div class="detail-sheet full" id="detail-sheet">
   <div class="sheet-header">
-    <div class="sheet-title" id="detail-title">�</div>
+    <div class="sheet-title" id="detail-title">�</div>
     <button class="sheet-close" onclick="closeAllSheets()" aria-label="닫기">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
@@ -833,9 +833,9 @@ async function renderBrands() {
   // Pager
   const totalPages = Math.ceil(count / PAGE_SIZE);
   $('pager').innerHTML =
-    '<button class="btn btn-sm" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goPage(' + (currentPage - 1) + ')">�</button>' +
-    '<span class="page-info">' + currentPage + ' / ' + totalPages + ' � 총 ' + fmtInt(count) + '</span>' +
-    '<button class="btn btn-sm" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goPage(' + (currentPage + 1) + ')">�</button>';
+    '<button class="btn btn-sm" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goPage(' + (currentPage - 1) + ')">�</button>' +
+    '<span class="page-info">' + currentPage + ' / ' + totalPages + ' � 총 ' + fmtInt(count) + '</span>' +
+    '<button class="btn btn-sm" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goPage(' + (currentPage + 1) + ')">�</button>';
   // Bind swipe + tap on each card
   document.querySelectorAll('.brand-card').forEach(el => bindSwipe(el));
 }
@@ -851,7 +851,7 @@ function renderBrandCard(b) {
         '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide(\'' + b.id + '\', \'rejected\')">반려</button>' +
       '</div>'
     : '';
-  const swipeHint = canDecide(currentUser) && b.review_status === 'pending' ? '<div class="swipe-hint">← 반려 � 승인 →</div>' : '';
+  const swipeHint = canDecide(currentUser) && b.review_status === 'pending' ? '<div class="swipe-hint">← 반려 � 승인 →</div>' : '';
   return (
     '<div class="brand-card" data-id="' + b.id + '" data-status="' + b.review_status + '" onclick="openDetail(\'' + b.id + '\')">' +
       '<div class="brand-card-bg left"><span class="icon">✓</span>승인</div>' +
@@ -863,8 +863,8 @@ function renderBrandCard(b) {
         '</div>' +
         '<div class="meta-row">' +
           (b.company_location ? '<span class="mini">' + escapeHtml(b.company_location) + '</span>' : '') +
-          (b.assigned_to ? '<span class="mini">� @' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</span>' : '') +
-          (dup ? '� ' + dup : '') +
+          (b.assigned_to ? '<span class="mini">� @' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</span>' : '') +
+          (dup ? '� ' + dup : '') +
         '</div>' +
         (cats ? '<div class="cat-row">' + cats + '</div>' : '') +
         decideButtons +
@@ -1032,12 +1032,12 @@ async function loadDashboard() {
       '<div class="dash-card pending"><div class="lbl">대기중</div><div class="val">' + fmtInt(pend.count) + '</div></div>' +
       '<div class="dash-card approved"><div class="lbl">승인</div><div class="val">' + fmtInt(app.count) + '</div></div>' +
       '<div class="dash-card rejected"><div class="lbl">반려</div><div class="val">' + fmtInt(rej.count) + '</div></div>';
-    // Team stats � only if user has permission
+    // Team stats � only if user has permission
     if (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.can_view_team_stats) {
       const { data } = await sb.rpc('assignment_stats');
       const agg = {};
       // Seed with all team profiles so users with 0 assignments still show up
-      profilesCache.filter(p => p.role === 'team').forEach(p => {
+      profilesCache.filter(p => p.role !== 'appointment_setter').forEach(p => {
         agg[p.username] = {pending:0, approved:0, rejected:0, total:0};
       });
       (data || []).forEach(r => {
@@ -1134,7 +1134,7 @@ async function uploadCsv(file) {
     res.innerHTML = '일부 에러: ' + errCount + ' chunks. 다시 시도해주세요.';
   } else {
     res.className = 'upload-result show success';
-    res.innerHTML = '<b>완료</b> � ' + mapped.length + '개 업로드/업데이트됨';
+    res.innerHTML = '<b>완료</b> � ' + mapped.length + '개 업로드/업데이트됨';
     toast('업로드 완료', 'success');
   }
   $('file-input').value = '';
@@ -1174,8 +1174,8 @@ async function openLog() {
       'brand_bulk_assign': '일괄 할당',
     })[r.action_type] || r.action_type;
     return '<div class="log-card">' +
-      '<div class="log-time">' + ts + ' � ' + escapeHtml((u && u.name) || '시스템') + '</div>' +
-      '<div class="log-action"><b>' + action + '</b> � ' + escapeHtml(r.summary || '') + '</div>' +
+      '<div class="log-time">' + ts + ' � ' + escapeHtml((u && u.name) || '시스템') + '</div>' +
+      '<div class="log-action"><b>' + action + '</b> � ' + escapeHtml(r.summary || '') + '</div>' +
     '</div>';
   }).join('');
 }
