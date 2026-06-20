@@ -1683,6 +1683,25 @@ async function loadAllFilteredIds(filters) {
   return ids;
 }
 
+// Fetch all filtered brand rows (full columns) for CSV export.
+async function loadAllFilteredBrands(filters, onProgress) {
+  const PAGE = 1000;
+  let from = 0;
+  const rows = [];
+  for (;;) {
+    let q = sb.from('brands').select('*').order('uploaded_at', { ascending: false });
+    q = buildBrandFilter(q, filters);
+    q = q.range(from, from + PAGE - 1);
+    const { data, error } = await q;
+    if (error) { console.warn('loadAllFilteredBrands:', error); break; }
+    (data || []).forEach(r => rows.push(r));
+    if (onProgress) onProgress(rows.length);
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return rows;
+}
+
 // 5 parallel head-count queries for the stats cards.
 async function loadBrandStats(filters) {
   const baseFilters = Object.assign({}, filters, { status: '' });
@@ -3920,11 +3939,26 @@ async function revertGroup(logIds, btn) {
 // Download
 // =====================================================
 async function downloadCSV() {
-  const brands = await dbGetAllBrands();
-  let rows;
-  if (currentUser.role === 'admin') rows = brands;
-  else if (currentUser.role === 'manager') rows = brands.filter(b => b.review_status === 'approved');
-  else { toast('다운로드 권한이 없습니다'); return; }
+  if (!['admin','manager'].includes(currentUser.role)) { toast('다운로드 권한이 없습니다'); return; }
+  let rows = [];
+  let sourceLabel = '';
+  if (selectedBrandIds && selectedBrandIds.size > 0) {
+    const ids = Array.from(selectedBrandIds);
+    sourceLabel = '선택된 ' + fmtInt(ids.length) + '개';
+    toast(sourceLabel + ' 다운로드 중...');
+    const CHUNK = 500;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK);
+      const { data, error } = await sb.from('brands').select('*').in('id', slice);
+      if (error) { console.warn(error); toast('다운로드 실패: ' + error.message); return; }
+      (data || []).forEach(r => rows.push(r));
+    }
+  } else {
+    sourceLabel = '필터된 뷰';
+    toast(sourceLabel + ' 다운로드 중...');
+    rows = await loadAllFilteredBrands(_currentFilters || {});
+  }
+  if (currentUser.role === 'manager') rows = rows.filter(b => b.review_status === 'approved');
   if (!rows.length) { toast('다운로드할 데이터가 없습니다'); return; }
 
   // ---- Pipedrive Organization import format ----
