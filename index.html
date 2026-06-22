@@ -1647,7 +1647,7 @@ function _escLike(s) { return String(s || '').replace(/[\\%_]/g, ch => '\\' + ch
 function buildBrandFilter(q, f) {
   if (!f) f = {};
   if (f.status === '__dup') q = q.not('pending_update', 'is', null);
-  else if (f.status === '__assigned') q = q.not('assigned_to', 'is', null);
+  else if (f.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
   else if (f.status) q = q.eq('review_status', f.status);
   if (f.country) q = q.eq('country_code', f.country);
   if (f.assignee === '__unassigned') q = q.is('assigned_to', null);
@@ -1729,7 +1729,7 @@ async function loadBrandStats(filters) {
   function makeCount(opts) {
     let q = sb.from('brands').select('id', { count: 'exact', head: true });
     if (opts.status === '__dup') q = q.not('pending_update', 'is', null);
-    else if (opts.status === '__assigned') q = q.not('assigned_to', 'is', null);
+    else if (opts.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
     else if (opts.status) q = q.eq('review_status', opts.status);
     // For __assigned card, also clear assignee filter so we count ALL assigned brands
     const overrides = opts.status === '__assigned' ? { status: '', assignee: '' } : { status: '' };
@@ -4847,9 +4847,4 @@ document.getElementById('favicon-file').addEventListener('change', async e => { 
     showApp();
   } else {
     // Even without login, try to load public app_settings so the login screen shows the right logo
-    try { await loadAppSettings(); applyLogoEverywhere(); applyFavicon(); } catch(e) {}
-  }
-})();
-</script>
-</body>
-</html>
+    try { await loadAppSettings(); applyLogoEverywhere(); appl
