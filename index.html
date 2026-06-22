@@ -1131,13 +1131,17 @@
           <div class="sub" style="color:var(--text-dim);margin-top:4px;">같은 형식의 CSV를 추가로 업로드할 수 있습니다.</div>
         </div>
         <div class="card-block" style="width:100%;max-width:680px;">
-          <p class="desc">domains_export.csv와 동일한 컬럼 구조의 파일을 업로드하면 자동으로 추가됩니다. 동일한 도메인이 있으면 사이트/소셜 데이터를 비교해 변경사항을 알려드립니다.</p>
+          <p class="desc">원본 schema 또는 Pipedrive 다운로드 포맷 CSV 둘 다 자동 인식합니다. 동일한 도메인이 있으면 사이트/소셜 데이터를 비교해 변경사항을 알려드립니다.</p>
           <div class="dropzone" id="dropzone">
             <div class="icon">↑</div>
             <div><b>클릭하거나 파일을 드래그하세요</b></div>
             <div class="muted" style="margin-top:4px">.csv 파일</div>
             <input type="file" id="file-input" accept=".csv" style="display:none">
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer;user-select:none">
+            <input type="checkbox" id="upload-overwrite" style="width:16px;height:16px;cursor:pointer">
+            <span>기존 도메인 덮어쓰기 (중복 체크 없이 강제 업데이트)</span>
+          </label>
           <div id="upload-result" class="upload-result"></div>
         </div>
       </div>
@@ -2561,8 +2565,99 @@ function parseCSV(text) {
 }
 function csvToObjects(text) {
   const rows = parseCSV(text); if (!rows.length) return [];
-  const headers = rows[0].map(h => h.trim());
+  const headers = rows[0].map(h => h.trim().replace(/^﻿/, ''));
   return rows.slice(1).map(r => { const o = {}; headers.forEach((h, i) => { o[h] = (r[i] == null ? '' : String(r[i])).trim(); }); return o; });
+}
+
+// ===== Pipedrive Organization export format auto-normalize =====
+// Detects CSVs downloaded via downloadCSV() (Pipedrive headers like "Organization name", "Website")
+// and re-maps them to the brands table column names.
+const PIPEDRIVE_HEADER_MAP = {
+  'Organization name': 'domain',
+  'Website': 'domain_url',
+  'Address': 'company_location',
+  'City': 'city',
+  'State': 'state',
+  'Country code': 'country_code',
+  'Phone': 'phones',
+  'Email': 'emails',
+  'Industry': 'categories',
+  'Average price (USD)': 'average_product_price_usd',
+  'Platform': '__platform_combo',  // "Shopify Plus / Shopify" -> plan/platform split
+  'Instagram': 'instagram',
+  'Instagram URL': 'instagram_url',
+  'LinkedIn': 'linkedin_account',
+  'LinkedIn URL': 'linkedin_url',
+  'TikTok': 'tiktok',
+  'TikTok followers': 'tiktok_followers',
+  'YouTube': 'youtube',
+  'YouTube followers': 'youtube_followers',
+  'X (Twitter)': 'twitter',
+  'X followers': 'twitter_followers',
+  'Facebook': 'facebook',
+  'Pinterest': 'pinterest',
+  'Pinterest followers': 'pinterest_followers',
+  'Decision status': 'review_status',
+  'Decided by': 'decided_by_name',
+  'Decided at': 'decided_at',
+  'Decision note': 'decision_note',
+  'Notes': '__notes_parse',  // Contains Categories/Rank/Platform rank/Domain created
+};
+function isPipedriveFormat(rows) {
+  if (!rows || !rows.length) return false;
+  const keys = Object.keys(rows[0]);
+  return keys.includes('Organization name') && keys.includes('Website');
+}
+function _parsePipedriveNotes(notes) {
+  // "Categories: /a, /b | Rank: 12345 | Platform rank: 678 | Domain created: 2019/01/18"
+  const out = {};
+  if (!notes) return out;
+  notes.split('|').forEach(seg => {
+    const m = seg.trim().match(/^([^:]+):\s*(.+)$/);
+    if (!m) return;
+    const k = m[1].trim().toLowerCase();
+    const v = m[2].trim();
+    if (k === 'categories') out.categories = v;
+    else if (k === 'rank') out.rank = v;
+    else if (k === 'platform rank') out.platform_rank = v;
+    else if (k === 'domain created') out.created = v;
+  });
+  return out;
+}
+function normalizePipedriveRows(rawRows) {
+  return rawRows.map(r => {
+    const out = {};
+    Object.keys(r).forEach(k => {
+      const mapped = PIPEDRIVE_HEADER_MAP[k];
+      const v = r[k];
+      if (!v) return;
+      if (mapped === '__platform_combo') {
+        // "Shopify Plus / Shopify" -> plan="Shopify Plus", platform="Shopify"
+        const parts = String(v).split(/\s*\/\s*/);
+        if (parts[0]) out.plan = parts[0];
+        if (parts[1]) out.platform = parts[1];
+      } else if (mapped === '__notes_parse') {
+        const parsed = _parsePipedriveNotes(v);
+        Object.assign(out, parsed);
+      } else if (mapped) {
+        // Special transforms
+        if (mapped === 'phones' || mapped === 'emails') {
+          // Pipedrive uses ';' as separator; our schema uses ':'
+          out[mapped] = String(v).split(';').map(s => s.trim()).filter(Boolean).join(':');
+        } else if (mapped === 'average_product_price_usd') {
+          // "USD $131.56" -> "131.56"
+          const m = String(v).match(/[\d.]+/);
+          out[mapped] = m ? m[0] : v;
+        } else {
+          out[mapped] = v;
+        }
+      } else {
+        // Header not in map — pass through (in case CSV mixes both schemas)
+        out[k] = v;
+      }
+    });
+    return out;
+  });
 }
 
 // Fields that we compare for duplicate diff
@@ -2626,11 +2721,20 @@ function setUploadProgress(opts) {
 }
 
 async function importBrands(rawRows) {
+  // Auto-detect Pipedrive export format and normalize to original schema
+  if (isPipedriveFormat(rawRows)) {
+    setUploadProgress({ status: 'Pipedrive 포맷 감지 - 컬럼 매핑 중...' });
+    rawRows = normalizePipedriveRows(rawRows);
+  }
   setUploadProgress({ status: '기존 데이터 비교 중...' });
-  const existing = await dbGetAllBrands();
+  // Force fresh fetch (avoid stale cache hiding recent deletes)
+  invalidateBrandsCache();
+  const existing = await dbGetAllBrands({ force: true });
   const byDomain = {}; existing.forEach(b => { byDomain[(b.domain || '').toLowerCase()] = b; });
+  const overwriteMode = !!document.getElementById('upload-overwrite')?.checked;
   const toAdd = [];
-  const toUpdate = [];
+  const toUpdate = [];        // pending_update mode (overwrite=false, original behavior)
+  const toOverwrite = [];     // full row overwrite mode (overwrite=true)
   const dupesList = [];
   let dupesNoChanges = 0, skipped = 0;
   const nowIso = new Date().toISOString();
@@ -2639,23 +2743,51 @@ async function importBrands(rawRows) {
     if (!dom) { skipped++; return; }
     const ex = byDomain[dom];
     if (ex) {
-      const diff = computeDiff(ex, r);
-      if (Object.keys(diff).length) {
-        toUpdate.push({ id: ex.id, pending_update: diff });
-        dupesList.push({ existingId: ex.id, existingDomain: ex.domain, diff });
+      if (overwriteMode) {
+        // Replace existing record's data fields with new CSV values
+        const replacement = filterBrandFields(Object.assign({}, r, {
+          id: ex.id,
+          uploaded_at: nowIso,
+          uploaded_by: currentUser.username,
+          pending_update: null,
+        }));
+        toOverwrite.push(replacement);
       } else {
-        dupesNoChanges++;
+        const diff = computeDiff(ex, r);
+        if (Object.keys(diff).length) {
+          toUpdate.push({ id: ex.id, pending_update: diff });
+          dupesList.push({ existingId: ex.id, existingDomain: ex.domain, diff });
+        } else {
+          dupesNoChanges++;
+        }
       }
       return;
     }
     byDomain[dom] = r;
     toAdd.push(filterBrandFields(Object.assign({}, r, {
-      review_status: 'pending',
+      review_status: r.review_status || 'pending',
       uploaded_at: nowIso,
       uploaded_by: currentUser.username,
       pending_update: null,
     })));
   });
+
+  // ----- Overwrite (upsert) for existing domains when overwriteMode -----
+  if (toOverwrite.length) {
+    const OW_CHUNK = 200;
+    let owDone = 0;
+    const t = Date.now();
+    for (let i = 0; i < toOverwrite.length; i += OW_CHUNK) {
+      const slice = toOverwrite.slice(i, i + OW_CHUNK);
+      const elapsed = (Date.now() - t) / 1000;
+      const pct = (owDone / toOverwrite.length) * 100;
+      setUploadProgress({ status: '🔁 기존 도메인 덮어쓰는 중', percent: pct, done: owDone, total: toOverwrite.length, elapsed });
+      const { error } = await sb.from('brands').upsert(slice, { onConflict: 'id' });
+      if (error) { setUploadProgress({ status: '덮어쓰기 실패: ' + error.message, kind: 'error' }); throw new Error(error.message); }
+      owDone += slice.length;
+    }
+    setUploadProgress({ status: '✓ 덮어쓰기 완료 ' + fmtInt(owDone) + '개', percent: 100, done: owDone, total: toOverwrite.length, elapsed: (Date.now() - t) / 1000, kind: 'success' });
+  }
 
   // ----- Insert in chunks with progress + time tracking -----
   const INSERT_CHUNK = 200;
@@ -2717,7 +2849,8 @@ async function importBrands(rawRows) {
     await Promise.all(Array.from({ length: concurrency }, worker));
   }
 
-  return { added: toAdd.length, dupes: dupesList, dupesNoChanges, skipped };
+  invalidateBrandsCache();
+  return { added: toAdd.length, overwritten: toOverwrite.length, dupes: dupesList, dupesNoChanges, skipped };
 }
 
 // ===== Bulk dupe modal =====
@@ -2836,7 +2969,7 @@ let _currentPageBrands = [];
 let _currentTotal = 0;
 let _currentFilters = {};
 
-// Track whether the most recent pointer interaction on a header was a drag (so click->sort is skipped)
+// Track whether the most recent pointer interaction on a header was a drag (so click→sort is skipped)
 let _headerDragDidMove = false;
 function onHeaderClick(ev, sortKey) {
   if (_headerDragDidMove) { _headerDragDidMove = false; return; }
@@ -3942,6 +4075,7 @@ async function downloadCSV() {
   if (!['admin','manager'].includes(currentUser.role)) { toast('다운로드 권한이 없습니다'); return; }
   let rows = [];
   let sourceLabel = '';
+  // Source priority: selection > filtered view
   if (selectedBrandIds && selectedBrandIds.size > 0) {
     const ids = Array.from(selectedBrandIds);
     sourceLabel = '선택된 ' + fmtInt(ids.length) + '개';
@@ -3958,6 +4092,7 @@ async function downloadCSV() {
     toast(sourceLabel + ' 다운로드 중...');
     rows = await loadAllFilteredBrands(_currentFilters || {});
   }
+  // Role gate: manager only gets approved
   if (currentUser.role === 'manager') rows = rows.filter(b => b.review_status === 'approved');
   if (!rows.length) { toast('다운로드할 데이터가 없습니다'); return; }
 
@@ -4072,6 +4207,7 @@ function handleFile(file) {
       const result = await importBrands(rows);
       const dupCount = result.dupes.length;
       const parts = ['<b>' + fmtInt(result.added) + '개 추가됨</b>'];
+      if (result.overwritten) parts.push('<b style="color:var(--accent)">' + fmtInt(result.overwritten) + '개 덮어쓰기됨</b>');
       if (dupCount) parts.push('<b style="color:var(--warning)">' + fmtInt(dupCount) + '개 중복 (변경 감지)</b>');
       if (result.dupesNoChanges) parts.push(fmtInt(result.dupesNoChanges) + '개 중복 (변경 없음)');
       if (result.skipped) parts.push(fmtInt(result.skipped) + '개 건너뜀');
