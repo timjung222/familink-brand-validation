@@ -774,6 +774,15 @@
   .pagination .info { font-size: 12px; color: var(--text-dim); margin-left: 12px; font-feature-settings: 'tnum'; }
 
   /* Bulk action bar */
+  .dup-bulk-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(90deg, rgba(245,158,11,0.10), rgba(245,158,11,0.02));
+    border: 1px solid rgba(245,158,11,0.35);
+    border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; font-size: 13px;
+  }
+  .dup-bulk-bar.hidden { display: none !important; }
+  .dup-bulk-bar b { color: var(--warning); }
+  .stat-card.assigned .value { color: var(--accent); }
   .bulk-bar {
     position: sticky; bottom: 20px; margin: 16px auto 0; max-width: 720px;
     background: var(--text); color: var(--bg);
@@ -1026,6 +1035,7 @@
         <select id="filter-status">
           <option value="">전체 상태</option>
           <option value="pending">대기중</option>
+          <option value="__assigned">할당됨</option>
           <option value="approved">승인</option>
           <option value="rejected">반려</option>
           <option value="__dup">중복 업데이트 있음</option>
@@ -1040,6 +1050,12 @@
         </select>
         <div class="spacer"></div>
         <span class="result-count" id="result-count"></span>
+      </div>
+      <div id="dup-bulk-bar" class="dup-bulk-bar hidden">
+        <span><b id="dup-bulk-count">0</b>개의 중복 업데이트가 있습니다 — 한 번에 처리하시겠어요?</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm btn-success" onclick="bulkApplyAllDupes()">전체 새값으로 업데이트</button>
+        <button class="btn btn-sm btn-ghost" onclick="bulkDismissAllDupes()">전체 무시</button>
       </div>
       <div id="select-banner" class="select-banner">
         <span><b id="sb-page-count">0</b>개 선택됨 (현재 페이지 전체).</span>
@@ -1631,6 +1647,7 @@ function _escLike(s) { return String(s || '').replace(/[\\%_]/g, ch => '\\' + ch
 function buildBrandFilter(q, f) {
   if (!f) f = {};
   if (f.status === '__dup') q = q.not('pending_update', 'is', null);
+  else if (f.status === '__assigned') q = q.not('assigned_to', 'is', null);
   else if (f.status) q = q.eq('review_status', f.status);
   if (f.country) q = q.eq('country_code', f.country);
   if (f.assignee === '__unassigned') q = q.is('assigned_to', null);
@@ -1712,18 +1729,22 @@ async function loadBrandStats(filters) {
   function makeCount(opts) {
     let q = sb.from('brands').select('id', { count: 'exact', head: true });
     if (opts.status === '__dup') q = q.not('pending_update', 'is', null);
+    else if (opts.status === '__assigned') q = q.not('assigned_to', 'is', null);
     else if (opts.status) q = q.eq('review_status', opts.status);
-    q = buildBrandFilter(q, Object.assign({}, baseFilters, { status: '' }));
+    // For __assigned card, also clear assignee filter so we count ALL assigned brands
+    const overrides = opts.status === '__assigned' ? { status: '', assignee: '' } : { status: '' };
+    q = buildBrandFilter(q, Object.assign({}, baseFilters, overrides));
     return q.then(r => r.count || 0);
   }
-  const [total, pending, approved, rejected, dupes] = await Promise.all([
+  const [total, pending, approved, rejected, dupes, assigned] = await Promise.all([
     makeCount({}),
     makeCount({ status: 'pending' }),
     makeCount({ status: 'approved' }),
     makeCount({ status: 'rejected' }),
     makeCount({ status: '__dup' }),
+    makeCount({ status: '__assigned' }),
   ]);
-  return { total, pending, approved, rejected, dupes };
+  return { total, pending, approved, rejected, dupes, assigned };
 }
 
 // One-time fetch of distinct filter values (cached for session).
@@ -2924,6 +2945,54 @@ async function dismissPendingUpdate(id) {
   renderBrands();
 }
 
+// Bulk apply: walk all brands with pending_update under current filters and apply new values
+async function bulkApplyAllDupes() {
+  const filters = Object.assign({}, _currentFilters || {}, { status: '__dup' });
+  toast('변경사항 확인 중...');
+  const rows = await loadAllFilteredBrands(filters);
+  if (!rows.length) { toast('처리할 중복 업데이트가 없습니다'); return; }
+  if (!confirm(fmtInt(rows.length) + '개의 항목을 모두 새 값으로 업데이트하시겠습니까?')) return;
+  let done = 0;
+  const updates = rows.map(b => {
+    const upd = { id: b.id, pending_update: null };
+    if (b.pending_update) {
+      Object.keys(b.pending_update).forEach(k => { upd[k] = b.pending_update[k].new; });
+    }
+    return filterBrandFields(upd);
+  });
+  const CHUNK = 100;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    const slice = updates.slice(i, i + CHUNK);
+    const { error } = await sb.from('brands').upsert(slice, { onConflict: 'id' });
+    if (error) { toast('일부 업데이트 실패: ' + error.message); break; }
+    done += slice.length;
+    toast(fmtInt(done) + ' / ' + fmtInt(updates.length) + ' 업데이트 중...');
+  }
+  toast(fmtInt(done) + '개 새 값으로 업데이트됨');
+  invalidateBrandsCache();
+  renderBrands();
+}
+
+// Bulk dismiss: clear pending_update on all brands matching current filter
+async function bulkDismissAllDupes() {
+  const filters = Object.assign({}, _currentFilters || {}, { status: '__dup' });
+  const ids = await loadAllFilteredIds(filters);
+  if (!ids.length) { toast('처리할 중복 업데이트가 없습니다'); return; }
+  if (!confirm(fmtInt(ids.length) + '개의 중복 업데이트를 모두 무시하시겠습니까?')) return;
+  let done = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const { error } = await sb.from('brands').update({ pending_update: null }).in('id', slice);
+    if (error) { toast('일부 무시 실패: ' + error.message); break; }
+    done += slice.length;
+    toast(fmtInt(done) + ' / ' + fmtInt(ids.length) + ' 처리 중...');
+  }
+  toast(fmtInt(done) + '개 중복 업데이트 무시됨');
+  invalidateBrandsCache();
+  renderBrands();
+}
+
 // =====================================================
 // Visibility
 // =====================================================
@@ -3198,6 +3267,7 @@ async function renderBrands() {
   let statsHtml =
     '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
     '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
+    '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\'})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
     '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
     '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
   if (stats.dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
@@ -3215,6 +3285,14 @@ async function renderBrands() {
       ? (fmtInt(startIdx + 1) + '–' + fmtInt(startIdx + shown) + ' / 전체 ' + fmtInt(_currentTotal) + '개')
       : (fmtInt(_currentTotal) + '개');
   renderPagination(_currentTotal);
+
+  // Show bulk dup actions when filter is __dup
+  const dupBar = document.getElementById('dup-bulk-bar');
+  if (dupBar) {
+    const showDup = filters.status === '__dup' && _currentTotal > 0 && (currentUser.role === 'admin' || currentUser.role === 'manager');
+    dupBar.classList.toggle('hidden', !showDup);
+    if (showDup) document.getElementById('dup-bulk-count').textContent = fmtInt(_currentTotal);
+  }
 
   // Render rows
   const tbody = document.getElementById('brand-tbody');
@@ -3666,6 +3744,7 @@ async function _refreshStatsNow() {
     let html =
       '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
       '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
+      '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\'})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
       '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
       '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
     if (stats.dupes) html += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
