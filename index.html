@@ -1732,7 +1732,6 @@ async function toggleStar(id, ev) {
   const { error } = await sb.from('brands').update({ is_starred: newVal }).eq('id', id);
   if (error) {
     toast('별표 실패: ' + error.message);
-    // revert
     b.is_starred = !newVal;
     renderBrands();
   }
@@ -4911,4 +4910,48 @@ function renderUserBreakdown(all, start, end) {
 // Wire-up
 // =====================================================
 ['search','filter-status','filter-country','filter-assignee','filter-category','filter-domlen'].forEach(id => {
-  document.addEventListener('input', e => { if (e.target && e.target.id === id) { currentPag
+  document.addEventListener('input', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
+  document.addEventListener('change', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
+});
+document.addEventListener('change', e => { if (e.target && e.target.id === 'bulk-scope') updateBulkHelp(); });
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+['su-email','su-password','su-name'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
+});
+
+// Logo/favicon file handlers
+document.getElementById('logo-file').addEventListener('change', async e => { if (!e.target.files[0]) return; const url = await readImageAsDataUrl(e.target.files[0]); setLogo(url); toast('로고 변경됨'); });
+document.getElementById('favicon-file').addEventListener('change', async e => { if (!e.target.files[0]) return; const url = await readImageAsDataUrl(e.target.files[0]); setFavicon(url); toast('파비콘 변경됨'); });
+
+// =====================================================
+// Init
+// =====================================================
+(async function init() {
+  applyTheme(localStorage.getItem(LS.theme) || 'light');
+  applyFavicon();
+  applyLogoEverywhere();
+  setupUpload();
+
+  // Listen for sign-out from elsewhere
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' && currentUser) {
+      currentUser = null;
+      _profilesCache = [];
+      document.getElementById('app').classList.remove('active');
+      document.getElementById('login').style.display = 'flex';
+    }
+  });
+
+  if (await restoreSession()) {
+    await Promise.all([loadProfiles(), loadAppSettings()]);
+    applyLogoEverywhere(); applyFavicon();
+    showApp();
+  } else {
+    // Even without login, try to load public app_settings so the login screen shows the right logo
+    try { await loadAppSettings(); applyLogoEverywhere(); applyFavicon(); } catch(e) {}
+  }
+})();
+</script>
+</body>
+</html>
