@@ -346,6 +346,31 @@
   .hidden { display: none !important; }
   .dup-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--warning-soft); color: var(--warning); padding: 2px 7px; border-radius: 4px; font-size: 10.5px; font-weight: 600; }
   .dup-badge::before { content: ''; width: 5px; height: 5px; background: var(--warning); border-radius: 50%; }
+
+  .star-btn {
+    background: none; border: none; padding: 2px 6px; cursor: pointer;
+    font-size: 18px; line-height: 1; color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .star-btn.on { color: #f59e0b; text-shadow: 0 0 6px rgba(245,158,11,0.45); }
+  .brand-card.starred { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.25); }
+  .brand-card.starred .brand-card-content { background: transparent; }
+  .kd-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 500; border: 1px solid transparent;
+  }
+  .kd-yes { background: var(--success-soft); color: var(--success); border-color: rgba(16,185,129,0.20); }
+  .kd-no { background: var(--danger-soft); color: var(--danger); border-color: rgba(239,68,68,0.20); }
+  .kd-unknown { background: var(--panel-2); color: var(--text-dim); border-color: var(--border); }
+  .src-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 500;
+    background: rgba(94,106,210,0.10); color: var(--accent);
+    border: 1px solid rgba(94,106,210,0.25);
+  }
+  .stat-mini.starred .val { color: #f59e0b; }
+  .stat-mini.assigned .val { color: var(--accent); }
+
 </style>
 </head>
 <body>
@@ -416,6 +441,10 @@
           <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">파일 선택</button>
         </div>
         <input id="file-input" type="file" accept=".csv" style="display:none" onchange="handleFile(event)">
+        <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="upload-overwrite" style="width:18px;height:18px;cursor:pointer">
+          <span>기존 도메인 덮어쓰기 (중복 강제 업데이트)</span>
+        </label>
         <div class="upload-result" id="upload-result"></div>
       </div>
     </div>
@@ -729,7 +758,9 @@ async function loadDistinctFilters() {
 function renderFilterBar() {
   const all = [
     { status: '', label: '전체' },
+    { status: '__starred', label: '★ 중요' },
     { status: 'pending', label: '대기중' },
+    { status: '__assigned', label: '할당됨' },
     { status: 'approved', label: '승인' },
     { status: 'rejected', label: '반려' },
   ];
@@ -769,7 +800,10 @@ document.addEventListener('input', e => {
 // ============ Brands data ============
 async function fetchBrandsPage() {
   let q = sb.from('brands').select('*', { count: 'exact' });
-  if (currentFilters.status) q = q.eq('review_status', currentFilters.status);
+  if (currentFilters.status === '__starred') q = q.eq('is_starred', true);
+  else if (currentFilters.status === '__dup') q = q.not('pending_update', 'is', null);
+  else if (currentFilters.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
+  else if (currentFilters.status) q = q.eq('review_status', currentFilters.status);
   if (currentFilters.country) q = q.eq('country_code', currentFilters.country);
   if (currentFilters.category) q = q.like('categories', '%' + currentFilters.category + '%');
   if (currentFilters.assignee === '__unassigned') q = q.is('assigned_to', null);
@@ -785,6 +819,7 @@ async function fetchBrandsPage() {
       q = q.in('review_status', currentUser.visible_statuses);
     }
   }
+  q = q.order('is_starred', { ascending: false });
   q = q.order('created', { ascending: false });
   q = q.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
   const { data, error, count } = await q;
@@ -796,21 +831,26 @@ async function renderStats() {
   try {
     const filt = { ...currentFilters };
     delete filt.status; // stats independent of status
-    const queries = ['pending', 'approved', 'rejected'].map(s => {
-      let q = sb.from('brands').select('id', { count: 'exact', head: true }).eq('review_status', s);
-      if (currentUser.role === 'team') q = q.eq('assigned_to', currentUser.username);
-      return q;
-    });
-    queries.unshift((() => {
+    const mkQ = () => {
       let q = sb.from('brands').select('id', { count: 'exact', head: true });
       if (currentUser.role === 'team') q = q.eq('assigned_to', currentUser.username);
       return q;
-    })());
+    };
+    const queries = [
+      mkQ(),
+      mkQ().eq('review_status', 'pending'),
+      mkQ().not('assigned_to', 'is', null).eq('review_status', 'pending'),
+      mkQ().eq('review_status', 'approved'),
+      mkQ().eq('review_status', 'rejected'),
+      mkQ().eq('is_starred', true),
+    ];
     const results = await Promise.all(queries);
-    const [total, pending, approved, rejected] = results.map(r => r.count || 0);
+    const [total, pending, assigned, approved, rejected, starred] = results.map(r => r.count || 0);
     $('stats-strip').innerHTML =
       '<div class="stat-mini" onclick="setStatusFilter(\'\')"><div class="lbl">전체</div><div class="val">' + fmtInt(total) + '</div></div>' +
+      (starred ? '<div class="stat-mini starred" onclick="setStatusFilter(\'__starred\')"><div class="lbl">★ 중요</div><div class="val">' + fmtInt(starred) + '</div></div>' : '') +
       '<div class="stat-mini pending" onclick="setStatusFilter(\'pending\')"><div class="lbl">대기</div><div class="val">' + fmtInt(pending) + '</div></div>' +
+      '<div class="stat-mini assigned" onclick="setStatusFilter(\'__assigned\')"><div class="lbl">할당됨</div><div class="val">' + fmtInt(assigned) + '</div></div>' +
       '<div class="stat-mini approved" onclick="setStatusFilter(\'approved\')"><div class="lbl">승인</div><div class="val">' + fmtInt(approved) + '</div></div>' +
       '<div class="stat-mini rejected" onclick="setStatusFilter(\'rejected\')"><div class="lbl">반려</div><div class="val">' + fmtInt(rejected) + '</div></div>';
   } catch(e) { console.warn(e); }
@@ -840,6 +880,25 @@ async function renderBrands() {
 }
 function goPage(p) { currentPage = Math.max(1, p); renderBrands(); $('view-container').scrollTo({ top: 0, behavior: 'smooth' }); }
 
+async function toggleStar(id, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const b = brandsCache.find(x => x.id == id);
+  if (!b) return;
+  const newVal = !b.is_starred;
+  b.is_starred = newVal;
+  document.querySelectorAll('.brand-card[data-id="' + id + '"]').forEach(card => {
+    card.classList.toggle('starred', newVal);
+    const btn = card.querySelector('.star-btn');
+    if (btn) { btn.classList.toggle('on', newVal); btn.textContent = newVal ? '★' : '☆'; btn.title = newVal ? '중요 해제' : '중요 표시'; }
+  });
+  const { error } = await sb.from('brands').update({ is_starred: newVal }).eq('id', id);
+  if (error) {
+    toast('별표 실패: ' + error.message, 'error');
+    b.is_starred = !newVal;
+    renderBrands();
+  }
+}
+
 function renderBrandCard(b) {
   const label = { pending: '대기중', approved: '승인', rejected: '반려' }[b.review_status];
   const cats = (b.categories || '').split(':').filter(Boolean).slice(0, 3).map(c => '<span class="cat-tag">' + escapeHtml(c.split('/').pop()) + '</span>').join('');
@@ -852,12 +911,13 @@ function renderBrandCard(b) {
     : '';
   const swipeHint = canDecide(currentUser) && b.review_status === 'pending' ? '<div class="swipe-hint">← 반려 — 승인 →</div>' : '';
   return (
-    '<div class="brand-card" data-id="' + b.id + '" data-status="' + b.review_status + '" onclick="openDetail(\'' + b.id + '\')">' +
+    '<div class="brand-card ' + (b.is_starred ? 'starred' : '') + '" data-id="' + b.id + '" data-status="' + b.review_status + '" onclick="openDetail(\'' + b.id + '\')">' +
       '<div class="brand-card-bg left"><span class="icon">✓</span>승인</div>' +
       '<div class="brand-card-bg right">반려<span class="icon">✕</span></div>' +
       '<div class="brand-card-content">' +
         '<div class="domain-row">' +
           '<div class="domain-text">' + escapeHtml(b.domain) + '</div>' +
+          '<button class="star-btn ' + (b.is_starred ? 'on' : '') + '" onclick="event.stopPropagation();toggleStar(\'' + b.id + '\', event)" title="' + (b.is_starred ? '중요 해제' : '중요 표시') + '">' + (b.is_starred ? '★' : '☆') + '</button>' +
           '<span class="status-badge status-' + b.review_status + '">' + label + '</span>' +
         '</div>' +
         '<div class="meta-row">' +
@@ -865,6 +925,19 @@ function renderBrandCard(b) {
           (b.assigned_to ? '<span class="mini">— @' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</span>' : '') +
           (dup ? '— ' + dup : '') +
         '</div>' +
+        ((b.korea_distribution || b.source_url) ? (function(){
+          var kdChip = '';
+          if (b.korea_distribution && b.korea_distribution.trim()) {
+            var v = b.korea_distribution.trim();
+            var lower = v.toLowerCase();
+            var cls = 'kd-unknown';
+            if (['yes','y','o','있음','유'].includes(lower) || lower.includes('있')) cls = 'kd-yes';
+            else if (['no','n','x','없음','무'].includes(lower) || lower.includes('없')) cls = 'kd-no';
+            kdChip = '<span class="kd-chip ' + cls + '">한국유통: ' + escapeHtml(v) + '</span>';
+          }
+          var srcChip = (b.source_url && b.source_url.trim()) ? '<span class="src-chip">소스</span>' : '';
+          return '<div class="cat-row" style="margin-top:6px">' + kdChip + ' ' + srcChip + '</div>';
+        })() : '') +
         (cats ? '<div class="cat-row">' + cats + '</div>' : '') +
         decideButtons +
         swipeHint +
@@ -989,6 +1062,8 @@ function renderDetailContent(b) {
       (b.average_product_price_usd ? '<div class="info-card"><div class="lbl">평균가</div><div class="val">' + escapeHtml(b.average_product_price_usd) + '</div></div>' : '') +
       (b.plan || b.platform ? '<div class="info-card"><div class="lbl">플랫폼</div><div class="val">' + escapeHtml(b.plan || b.platform) + '</div></div>' : '') +
       (b.assigned_to ? '<div class="info-card"><div class="lbl">담당자</div><div class="val">' + escapeHtml((userMap[b.assigned_to] && userMap[b.assigned_to].name) || b.assigned_to) + '</div></div>' : '') +
+      (b.korea_distribution ? '<div class="info-card"><div class="lbl">한국 내 유통</div><div class="val">' + escapeHtml(b.korea_distribution) + '</div></div>' : '') +
+      (b.source_url ? '<div class="info-card full"><div class="lbl">소스 경로</div><div class="val">' + (/^https?:/i.test(b.source_url) ? '<a href="' + escapeAttr(b.source_url) + '" target="_blank" rel="noopener">' + escapeHtml(b.source_url) + '</a>' : escapeHtml(b.source_url)) + '</div></div>' : '') +
       (b.decided_by ? '<div class="info-card"><div class="lbl">결정자</div><div class="val">' + escapeHtml(b.decided_by_name || (userMap[b.decided_by] && userMap[b.decided_by].name) || b.decided_by) + '<br><span class="muted" style="font-size:11px">' + formatDate(b.decided_at) + '</span></div></div>' : '') +
     '</div></div>' +
     '<div class="detail-section"><h4>SNS</h4>' + socialHtml + '</div>' +
@@ -1090,16 +1165,23 @@ async function uploadCsv(file) {
   res.innerHTML = '<div style="font-weight:600;margin-bottom:6px">총 ' + records.length + '개 업로드 시작...</div><div class="progress-bar"><div class="progress-fill" id="up-fill" style="width:5%"></div></div><div class="progress-meta"><span id="up-status">0%</span><span id="up-counts">0 / ' + records.length + '</span></div>';
   // Map columns
   const mapped = records.map(r => ({
-    domain: r['Domain'] || r['domain'] || '',
-    domain_url: r['Domain URL'] || r['domain_url'] || '',
-    company_location: r['Location'] || r['Address'] || r['company_location'] || '',
+    domain: r['Organization name'] || r['Domain'] || r['domain'] || '',
+    domain_url: r['Website'] || r['Domain URL'] || r['domain_url'] || '',
+    company_location: r['Address'] || r['Location'] || r['company_location'] || '',
     city: r['City'] || r['city'] || '',
-    country_code: r['Country Code'] || r['country_code'] || r['Country'] || '',
+    state: r['State'] || r['state'] || '',
+    country_code: r['Country code'] || r['Country Code'] || r['country_code'] || r['Country'] || '',
     categories: r['Industry'] || r['Categories'] || r['categories'] || '',
-    plan: r['Platform'] || r['plan'] || '',
-    average_product_price_usd: r['Avg Product Price (USD)'] || '',
-    emails: r['Email'] || r['emails'] || '',
-    phones: r['Phone'] || r['phones'] || '',
+    plan: (r['Platform'] || '').split(/\s*\/\s*/)[0] || r['plan'] || '',
+    platform: (r['Platform'] || '').split(/\s*\/\s*/)[1] || r['platform'] || '',
+    average_product_price_usd: (function(v){if(!v)return ''; var m=String(v).match(/[\d.]+/); return m?m[0]:v;})(r['Average price (USD)'] || r['Avg Product Price (USD)'] || ''),
+    korea_distribution: r['한국 내 유통 유무'] || r['한국 유통'] || r['한국유통'] || r['Korea Distribution'] || '',
+    source_url: r['소스 경로'] || r['소스경로'] || r['Source'] || r['Source URL'] || r['Source Path'] || '',
+    review_status: r['Decision status'] || 'pending',
+    decided_by_name: r['Decided by'] || '',
+    decision_note: r['Decision note'] || '',
+    emails: (function(v){return String(v||'').split(';').map(x=>x.trim()).filter(Boolean).join(':');})(r['Email'] || r['emails'] || ''),
+    phones: (function(v){return String(v||'').split(';').map(x=>x.trim()).filter(Boolean).join(':');})(r['Phone'] || r['phones'] || ''),
     instagram: r['Instagram'] || '',
     instagram_url: r['Instagram URL'] || '',
     instagram_followers: r['Instagram Followers'] ? parseInt(r['Instagram Followers']) || null : null,
@@ -1120,7 +1202,10 @@ async function uploadCsv(file) {
   let done = 0, errCount = 0;
   for (let i = 0; i < mapped.length; i += CHUNK) {
     const slice = mapped.slice(i, i + CHUNK);
-    const { error } = await sb.from('brands').upsert(slice, { onConflict: 'domain' });
+    const overwrite = !!document.getElementById('upload-overwrite')?.checked;
+    const { error } = overwrite
+      ? await sb.from('brands').upsert(slice, { onConflict: 'domain' })
+      : await sb.from('brands').upsert(slice, { onConflict: 'domain', ignoreDuplicates: true });
     if (error) { errCount++; console.warn(error); }
     done += slice.length;
     const pct = Math.round(100 * done / mapped.length);
