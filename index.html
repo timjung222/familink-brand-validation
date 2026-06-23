@@ -1260,6 +1260,10 @@
         <div class="chart-card">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <h3 id="dash-chart-title">활동 추이</h3>
+            <button class="btn btn-sm btn-ghost" onclick="openRateThresholdModal()" title="승인 비율 색상 기준 설정" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:4px 10px;">
+              <span style="font-size:13px">⚙</span>
+              <span id="rate-threshold-label">색상 기준</span>
+            </button>
             <div class="legend">
               <span><span class="dot" style="background:var(--success)"></span>승인</span>
               <span><span class="dot" style="background:var(--danger)"></span>반려</span>
@@ -1515,6 +1519,46 @@
 </div>
 
 <!-- Bulk Duplicate Modal -->
+
+<!-- ===== Rate threshold settings modal ===== -->
+<div id="modal-rate-threshold" class="modal-bg">
+  <div class="modal" style="max-width:480px;">
+    <h3>승인 비율 색상 기준 설정</h3>
+    <p class="muted" style="margin-bottom:16px;font-size:13px">각 날짜의 승인 비율(%)이 이 기준에 따라 색상으로 표시됩니다.</p>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--success);flex-shrink:0;"></span>
+        <span style="flex:1">그린라이트:</span>
+        <input type="number" id="rate-th-green" min="1" max="100" step="1" style="width:80px;text-align:right">
+        <span>% 이상</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--warning);flex-shrink:0;"></span>
+        <span style="flex:1">옐로우:</span>
+        <input type="number" id="rate-th-yellow" min="0" max="99" step="1" style="width:80px;text-align:right">
+        <span>% 이상</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;font-size:13px;opacity:0.7;">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--danger);flex-shrink:0;"></span>
+        <span style="flex:1">레드:</span>
+        <span style="font-feature-settings:'tnum'">옐로우 미만</span>
+      </label>
+    </div>
+    <div id="rate-th-preview" style="margin-top:16px;padding:12px;background:var(--panel-2);border-radius:8px;display:flex;gap:10px;align-items:center;font-size:12.5px;">
+      <span class="muted">미리보기:</span>
+      <span class="dash-rate-badge rate-good" style="font-size:12px;padding:4px 10px;">85% 승인</span>
+      <span class="dash-rate-badge rate-mid" style="font-size:12px;padding:4px 10px;">55% 승인</span>
+      <span class="dash-rate-badge rate-bad" style="font-size:12px;padding:4px 10px;">25% 승인</span>
+    </div>
+    <div id="rate-th-error" style="margin-top:10px;color:var(--danger);font-size:12px;min-height:16px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
+      <button class="btn btn-sm btn-ghost" onclick="resetRateThresholds()">기본값 복원</button>
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('modal-rate-threshold')">취소</button>
+      <button class="btn btn-sm btn-primary" onclick="saveRateThresholds()">저장</button>
+    </div>
+  </div>
+</div>
+
 <div id="modal-dupes" class="modal-bg">
   <div class="modal" style="max-width: 760px;">
     <h3>중복 데이터 처리</h3>
@@ -4756,6 +4800,7 @@ async function renderDashboard() {
   document.getElementById('dash-chart-title').textContent =
     ({ daily: '일별 활동', weekly: '주간 활동', monthly: '월별 활동' })[dashPeriod];
 
+  refreshRateThresholdLabel();
   drawChart(buckets);
   // Separate upload summary (excluded from bar chart to keep scale readable)
   const totalUploads = buckets.reduce((a, b) => a + (b.uploaded || 0), 0);
@@ -4934,6 +4979,77 @@ function niceCeil(v) {
   return m * pow;
 }
 
+// ===== Rate threshold settings (per-user localStorage) =====
+const RATE_TH_LS = 'familink_rate_thresholds_v1';
+const RATE_TH_DEFAULT = { green: 70, yellow: 40 };
+function loadRateThresholds() {
+  try {
+    const raw = localStorage.getItem(RATE_TH_LS);
+    if (!raw) return { ...RATE_TH_DEFAULT };
+    const o = JSON.parse(raw);
+    const g = parseInt(o.green, 10), y = parseInt(o.yellow, 10);
+    if (!isFinite(g) || !isFinite(y) || g <= y || g > 100 || y < 0) return { ...RATE_TH_DEFAULT };
+    return { green: g, yellow: y };
+  } catch(e) { return { ...RATE_TH_DEFAULT }; }
+}
+function getRateClass(rate) {
+  const th = loadRateThresholds();
+  if (rate >= th.green) return 'rate-good';
+  if (rate >= th.yellow) return 'rate-mid';
+  return 'rate-bad';
+}
+function refreshRateThresholdLabel() {
+  const el = document.getElementById('rate-threshold-label');
+  if (!el) return;
+  const th = loadRateThresholds();
+  el.textContent = '🟢 ' + th.green + '% / 🟡 ' + th.yellow + '%';
+}
+function openRateThresholdModal() {
+  const th = loadRateThresholds();
+  document.getElementById('rate-th-green').value = th.green;
+  document.getElementById('rate-th-yellow').value = th.yellow;
+  document.getElementById('rate-th-error').textContent = '';
+  // Live preview update
+  const gIn = document.getElementById('rate-th-green');
+  const yIn = document.getElementById('rate-th-yellow');
+  const updatePreview = () => {
+    const g = parseInt(gIn.value, 10), y = parseInt(yIn.value, 10);
+    if (!isFinite(g) || !isFinite(y)) return;
+    const ex = [
+      { rate: Math.min(100, g + 10), targetCls: 'rate-good' },
+      { rate: Math.round((g + y) / 2), targetCls: 'rate-mid' },
+      { rate: Math.max(0, y - 10), targetCls: 'rate-bad' },
+    ];
+    document.querySelectorAll('#rate-th-preview .dash-rate-badge').forEach((el, i) => {
+      el.className = 'dash-rate-badge ' + ex[i].targetCls;
+      el.textContent = ex[i].rate + '% 승인';
+    });
+  };
+  gIn.oninput = updatePreview;
+  yIn.oninput = updatePreview;
+  updatePreview();
+  document.getElementById('modal-rate-threshold').classList.add('active');
+}
+function saveRateThresholds() {
+  const g = parseInt(document.getElementById('rate-th-green').value, 10);
+  const y = parseInt(document.getElementById('rate-th-yellow').value, 10);
+  const errEl = document.getElementById('rate-th-error');
+  errEl.textContent = '';
+  if (!isFinite(g) || g < 1 || g > 100) { errEl.textContent = '그린라이트는 1~100 사이여야 합니다'; return; }
+  if (!isFinite(y) || y < 0 || y > 99) { errEl.textContent = '옐로우는 0~99 사이여야 합니다'; return; }
+  if (g <= y) { errEl.textContent = '그린라이트가 옐로우보다 커야 합니다'; return; }
+  localStorage.setItem(RATE_TH_LS, JSON.stringify({ green: g, yellow: y }));
+  toast('승인 비율 색상 기준 저장됨');
+  closeModal('modal-rate-threshold');
+  refreshRateThresholdLabel();
+  if (typeof renderDashboard === 'function') renderDashboard();
+}
+function resetRateThresholds() {
+  document.getElementById('rate-th-green').value = RATE_TH_DEFAULT.green;
+  document.getElementById('rate-th-yellow').value = RATE_TH_DEFAULT.yellow;
+  document.getElementById('rate-th-green').dispatchEvent(new Event('input'));
+}
+
 function drawChart(buckets) {
   // Monday.com-style daily activity cards — each day is a tile with clear 3-value display
   const container = document.getElementById('dash-cards');
@@ -4951,7 +5067,7 @@ function drawChart(buckets) {
     let rateBadge;
     if (total > 0) {
       const rate = Math.round(approved * 100 / total);
-      const cls = rate >= 70 ? 'rate-good' : (rate >= 40 ? 'rate-mid' : 'rate-bad');
+      const cls = getRateClass(rate);
       rateBadge = '<div class="dash-rate-badge ' + cls + '">' + rate + '% 승인</div>';
     } else {
       rateBadge = '<div class="dash-rate-badge rate-none">기록 없음</div>';
