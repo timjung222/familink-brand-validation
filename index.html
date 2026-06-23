@@ -4847,4 +4847,9 @@ document.getElementById('favicon-file').addEventListener('change', async e => { 
     showApp();
   } else {
     // Even without login, try to load public app_settings so the login screen shows the right logo
-    try { await loadAppSettings(); applyLogoEverywhere(); appl
+    try { await loadAppSettings(); applyLogoEverywhere(); applyFavicon(); } catch(e) {}
+  }
+})();
+</script>
+</body>
+</html>
