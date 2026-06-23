@@ -413,6 +413,16 @@
   }
   .dup-badge::before { content:''; width: 5px; height: 5px; background: var(--warning); border-radius: 50%; }
 
+  .star-btn {
+    background: none; border: none; padding: 2px 6px; cursor: pointer;
+    font-size: 17px; line-height: 1; color: var(--text-dim);
+    transition: transform .12s, color .12s;
+  }
+  .star-btn:hover { color: #f59e0b; transform: scale(1.15); }
+  .star-btn.on { color: #f59e0b; text-shadow: 0 0 6px rgba(245,158,11,0.45); }
+  tr.starred { background: rgba(245,158,11,0.04); }
+  tr.starred:hover { background: rgba(245,158,11,0.08); }
+
   .kd-chip {
     display: inline-block; padding: 2px 9px; border-radius: 4px;
     font-size: 11.5px; font-weight: 500; border: 1px solid transparent;
@@ -1047,6 +1057,7 @@
         <input id="search" type="search" placeholder="도메인, 카테고리, 도시 검색...">
         <select id="filter-status">
           <option value="">전체 상태</option>
+          <option value="__starred">★ 중요 표시</option>
           <option value="pending">대기중</option>
           <option value="__assigned">할당됨</option>
           <option value="approved">승인</option>
@@ -1661,6 +1672,7 @@ function buildBrandFilter(q, f) {
   if (!f) f = {};
   if (f.status === '__dup') q = q.not('pending_update', 'is', null);
   else if (f.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
+  else if (f.status === '__starred') q = q.eq('is_starred', true);
   else if (f.status) q = q.eq('review_status', f.status);
   if (f.country) q = q.eq('country_code', f.country);
   if (f.assignee === '__unassigned') q = q.is('assigned_to', null);
@@ -1690,6 +1702,8 @@ const SORT_FIELD_MAP = {
 async function loadBrandPage(filters, sort, page) {
   let q = sb.from('brands').select('*', { count: 'exact' });
   q = buildBrandFilter(q, filters);
+  // Always pin starred brands to the top, then apply user sort
+  q = q.order('is_starred', { ascending: false });
   const sortField = SORT_FIELD_MAP[sort && sort.key] || 'uploaded_at';
   q = q.order(sortField, { ascending: !!(sort && sort.dir === 'asc') });
   const from = (page - 1) * PAGE_SIZE;
@@ -1697,6 +1711,31 @@ async function loadBrandPage(filters, sort, page) {
   const { data, count, error } = await q;
   if (error) throw new Error(error.message);
   return { rows: data || [], total: count || 0 };
+}
+
+async function toggleStar(id, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const b = await dbGetBrand(id);
+  if (!b) return;
+  const newVal = !b.is_starred;
+  // Optimistic UI: update cache + DOM immediately
+  b.is_starred = newVal;
+  if (_currentPageBrands) {
+    const idx = _currentPageBrands.findIndex(x => x.id === id);
+    if (idx >= 0) _currentPageBrands[idx].is_starred = newVal;
+  }
+  document.querySelectorAll('tr[data-bid="' + id + '"]').forEach(tr => {
+    tr.classList.toggle('starred', newVal);
+    const btn = tr.querySelector('.star-btn');
+    if (btn) { btn.classList.toggle('on', newVal); btn.textContent = newVal ? '★' : '☆'; btn.title = newVal ? '중요 해제' : '중요 표시'; }
+  });
+  const { error } = await sb.from('brands').update({ is_starred: newVal }).eq('id', id);
+  if (error) {
+    toast('별표 실패: ' + error.message);
+    // revert
+    b.is_starred = !newVal;
+    renderBrands();
+  }
 }
 
 // Fetch all filtered IDs (used for "select all filtered" + bulk delete).
@@ -1743,6 +1782,7 @@ async function loadBrandStats(filters) {
     let q = sb.from('brands').select('id', { count: 'exact', head: true });
     if (opts.status === '__dup') q = q.not('pending_update', 'is', null);
     else if (opts.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
+    else if (opts.status === '__starred') q = q.eq('is_starred', true);
     else if (opts.status) q = q.eq('review_status', opts.status);
     // For __assigned card, also clear assignee filter so we count ALL assigned brands
     const overrides = opts.status === '__assigned' ? { status: '', assignee: '' } : { status: '' };
@@ -2328,6 +2368,7 @@ async function confirmFormat() {
 // =====================================================
 const ALL_COLUMNS = [
   { key: 'expand', label: '확장', locked: true, alwaysFirst: true },
+  { key: 'star', label: '★ 중요' },
   { key: 'domain', label: '도메인 / 회사', locked: true },
   { key: 'categories', label: '카테고리' },
   { key: 'location', label: '위치' },
@@ -2340,8 +2381,8 @@ const ALL_COLUMNS = [
   { key: 'decider', label: '결정자' },
   { key: 'actions', label: '액션' },
 ];
-const DEFAULT_VISIBLE = ['expand','domain','categories','price','korea_distribution','source_url','status','assignee','decider','actions'];
-const DEFAULT_ORDER = ['expand','domain','categories','price','korea_distribution','source_url','status','assignee','decider','actions','location','platform'];
+const DEFAULT_VISIBLE = ['expand','star','domain','categories','price','korea_distribution','source_url','status','assignee','decider','actions'];
+const DEFAULT_ORDER = ['expand','star','domain','categories','price','korea_distribution','source_url','status','assignee','decider','actions','location','platform'];
 
 function columnsLSKey() {
   // Per-user namespace so each teammate keeps their own ordering on this device
@@ -2745,7 +2786,7 @@ function computeDiff(oldB, newRow) {
   return diff;
 }
 
-const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by','korea_distribution','source_url']);
+const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by','korea_distribution','source_url','is_starred']);
 function filterBrandFields(o) {
   const out = {};
   Object.keys(o).forEach(k => { if (ALLOWED_BRAND_COLS.has(k) && o[k] !== undefined) out[k] = o[k]; });
@@ -3349,7 +3390,7 @@ async function renderBrands() {
     const selectCell = showSelect ? '<td class="col-select"><input type="checkbox" data-bid="' + b.id + '" ' + (isSel ? 'checked' : '') + ' onchange="toggleSelect(\'' + b.id + '\')"></td>' : '';
     const cells = cols.map(c => renderCell(c.key, b, userMap, isEx)).join('');
     const detail = isEx ? '<tr class="detail-row"><td colspan="' + colSpan + '">' + renderDetail(b) + '</td></tr>' : '';
-    return '<tr data-bid="' + b.id + '" class="' + (isEx ? 'expanded ' : '') + (isSel ? 'selected' : '') + '">' + selectCell + cells + '</tr>' + detail;
+    return '<tr data-bid="' + b.id + '" class="' + (isEx ? 'expanded ' : '') + (isSel ? 'selected ' : '') + (b.is_starred ? 'starred' : '') + '">' + selectCell + cells + '</tr>' + detail;
   }).join('');
 
   updateBulkBar();
@@ -3361,6 +3402,8 @@ function renderCell(key, b, userMap, isEx) {
   switch(key) {
     case 'expand':
       return '<td data-col-key="expand"><button class="expand-btn" onclick="toggleExpand(\'' + b.id + '\')">' + (isEx ? '▾' : '▸') + '</button></td>';
+    case 'star':
+      return '<td data-col-key="star"><button class="star-btn ' + (b.is_starred ? 'on' : '') + '" onclick="toggleStar(\'' + b.id + '\', event)" title="' + (b.is_starred ? '중요 해제' : '중요 표시') + '">' + (b.is_starred ? '★' : '☆') + '</button></td>';
     case 'domain': {
       const dup = b.pending_update ? '<span class="dup-badge">중복 업데이트</span>' : '';
       return '<td data-col-key="domain" class="domain-cell">' +
@@ -4868,48 +4911,4 @@ function renderUserBreakdown(all, start, end) {
 // Wire-up
 // =====================================================
 ['search','filter-status','filter-country','filter-assignee','filter-category','filter-domlen'].forEach(id => {
-  document.addEventListener('input', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
-  document.addEventListener('change', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
-});
-document.addEventListener('change', e => { if (e.target && e.target.id === 'bulk-scope') updateBulkHelp(); });
-document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-['su-email','su-password','su-name'].forEach(id => {
-  document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
-});
-
-// Logo/favicon file handlers
-document.getElementById('logo-file').addEventListener('change', async e => { if (!e.target.files[0]) return; const url = await readImageAsDataUrl(e.target.files[0]); setLogo(url); toast('로고 변경됨'); });
-document.getElementById('favicon-file').addEventListener('change', async e => { if (!e.target.files[0]) return; const url = await readImageAsDataUrl(e.target.files[0]); setFavicon(url); toast('파비콘 변경됨'); });
-
-// =====================================================
-// Init
-// =====================================================
-(async function init() {
-  applyTheme(localStorage.getItem(LS.theme) || 'light');
-  applyFavicon();
-  applyLogoEverywhere();
-  setupUpload();
-
-  // Listen for sign-out from elsewhere
-  sb.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT' && currentUser) {
-      currentUser = null;
-      _profilesCache = [];
-      document.getElementById('app').classList.remove('active');
-      document.getElementById('login').style.display = 'flex';
-    }
-  });
-
-  if (await restoreSession()) {
-    await Promise.all([loadProfiles(), loadAppSettings()]);
-    applyLogoEverywhere(); applyFavicon();
-    showApp();
-  } else {
-    // Even without login, try to load public app_settings so the login screen shows the right logo
-    try { await loadAppSettings(); applyLogoEverywhere(); applyFavicon(); } catch(e) {}
-  }
-})();
-</script>
-</body>
-</html>
+  document.addEventListener('input', e => { if (e.target && e.target.id === id) { currentPag
