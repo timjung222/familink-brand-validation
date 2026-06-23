@@ -413,6 +413,19 @@
   }
   .dup-badge::before { content:''; width: 5px; height: 5px; background: var(--warning); border-radius: 50%; }
 
+  .kd-chip {
+    display: inline-block; padding: 2px 9px; border-radius: 4px;
+    font-size: 11.5px; font-weight: 500; border: 1px solid transparent;
+  }
+  .kd-yes { background: var(--success-soft); color: var(--success); border-color: rgba(16,185,129,0.20); }
+  .kd-no { background: var(--danger-soft); color: var(--danger); border-color: rgba(239,68,68,0.20); }
+  .kd-unknown { background: var(--panel-2); color: var(--text-dim); border-color: var(--border); }
+  .src-link {
+    color: var(--accent); text-decoration: none; font-size: 12px;
+    border-bottom: 1px dashed rgba(94,106,210,0.5);
+  }
+  .src-link:hover { text-decoration: none; border-bottom-style: solid; }
+
   .status-badge {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 3px 9px; border-radius: 999px;
@@ -2320,13 +2333,15 @@ const ALL_COLUMNS = [
   { key: 'location', label: '위치' },
   { key: 'price', label: '평균가' },
   { key: 'platform', label: '플랫폼' },
+  { key: 'korea_distribution', label: '한국 유통' },
+  { key: 'source_url', label: '소스 경로' },
   { key: 'status', label: '상태' },
   { key: 'assignee', label: '담당자' },
   { key: 'decider', label: '결정자' },
   { key: 'actions', label: '액션' },
 ];
-const DEFAULT_VISIBLE = ['expand','domain','categories','price','status','assignee','decider','actions'];
-const DEFAULT_ORDER = ['expand','domain','categories','price','status','assignee','decider','actions','location','platform'];
+const DEFAULT_VISIBLE = ['expand','domain','categories','price','korea_distribution','source_url','status','assignee','decider','actions'];
+const DEFAULT_ORDER = ['expand','domain','categories','price','korea_distribution','source_url','status','assignee','decider','actions','location','platform'];
 
 function columnsLSKey() {
   // Per-user namespace so each teammate keeps their own ordering on this device
@@ -2584,9 +2599,26 @@ function parseCSV(text) {
   if (field.length || row.length) { row.push(field); rows.push(row); }
   return rows.filter(r => r.length > 1 || (r.length === 1 && r[0].trim()));
 }
+// Header aliases — handle both Korean and English variants for new columns
+const CSV_HEADER_ALIASES = {
+  '한국 내 유통 유무': 'korea_distribution',
+  '한국 유통': 'korea_distribution',
+  '한국유통': 'korea_distribution',
+  'Korea Distribution': 'korea_distribution',
+  'KoreaDistribution': 'korea_distribution',
+  '소스 경로': 'source_url',
+  '소스경로': 'source_url',
+  'Source': 'source_url',
+  'Source URL': 'source_url',
+  'Source Path': 'source_url',
+  'SourceURL': 'source_url',
+};
 function csvToObjects(text) {
   const rows = parseCSV(text); if (!rows.length) return [];
-  const headers = rows[0].map(h => h.trim().replace(/^﻿/, ''));
+  const headers = rows[0].map(h => {
+    const t = h.trim().replace(/^﻿/, '');
+    return CSV_HEADER_ALIASES[t] || t;
+  });
   return rows.slice(1).map(r => { const o = {}; headers.forEach((h, i) => { o[h] = (r[i] == null ? '' : String(r[i])).trim(); }); return o; });
 }
 
@@ -2622,6 +2654,11 @@ const PIPEDRIVE_HEADER_MAP = {
   'Decided by': 'decided_by_name',
   'Decided at': 'decided_at',
   'Decision note': 'decision_note',
+  '한국 내 유통 유무': 'korea_distribution',
+  '한국 유통': 'korea_distribution',
+  '소스 경로': 'source_url',
+  'Source': 'source_url',
+  'Source URL': 'source_url',
   'Notes': '__notes_parse',  // Contains Categories/Rank/Platform rank/Domain created
 };
 function isPipedriveFormat(rows) {
@@ -2708,7 +2745,7 @@ function computeDiff(oldB, newRow) {
   return diff;
 }
 
-const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by']);
+const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by','korea_distribution','source_url']);
 function filterBrandFields(o) {
   const out = {};
   Object.keys(o).forEach(k => { if (ALLOWED_BRAND_COLS.has(k) && o[k] !== undefined) out[k] = o[k]; });
@@ -3342,6 +3379,25 @@ function renderCell(key, b, userMap, isEx) {
       return '<td data-col-key="price">' + escapeHtml(b.average_product_price_usd || '—') + '</td>';
     case 'platform':
       return '<td data-col-key="platform">' + escapeHtml(b.plan || b.platform || '—') + '</td>';
+    case 'korea_distribution': {
+      const v = (b.korea_distribution || '').trim();
+      if (!v) return '<td data-col-key="korea_distribution"><span class="muted">—</span></td>';
+      const lower = v.toLowerCase();
+      let cls = 'kd-unknown';
+      if (['yes','y','o','있음','유'].includes(lower) || lower.includes('있')) cls = 'kd-yes';
+      else if (['no','n','x','없음','무'].includes(lower) || lower.includes('없')) cls = 'kd-no';
+      return '<td data-col-key="korea_distribution"><span class="kd-chip ' + cls + '">' + escapeHtml(v) + '</span></td>';
+    }
+    case 'source_url': {
+      const v = (b.source_url || '').trim();
+      if (!v) return '<td data-col-key="source_url"><span class="muted">—</span></td>';
+      const isUrl = /^https?:\/\//i.test(v);
+      if (isUrl) {
+        const short = v.replace(/^https?:\/\/(www\.)?/i, '').slice(0, 28) + (v.length > 35 ? '…' : '');
+        return '<td data-col-key="source_url"><a href="' + escapeAttr(v) + '" target="_blank" rel="noopener" class="src-link" title="' + escapeAttr(v) + '">' + escapeHtml(short) + '</a></td>';
+      }
+      return '<td data-col-key="source_url" title="' + escapeAttr(v) + '">' + escapeHtml(v.length > 30 ? v.slice(0, 30) + '…' : v) + '</td>';
+    }
     case 'status': {
       const label = { pending: '대기중', approved: '승인', rejected: '반려' }[b.review_status] || b.review_status;
       return '<td data-col-key="status"><span class="status-badge status-' + b.review_status + '">' + label + '</span></td>';
@@ -4207,6 +4263,8 @@ async function downloadCSV() {
     'Decided by',
     'Decided at',
     'Decision note',
+    '한국 내 유통 유무',
+    '소스 경로',
     'Notes',
   ];
   const splitJoin = (v, sep = ';') => {
@@ -4250,6 +4308,8 @@ async function downloadCSV() {
     'Decided by': b.decided_by_name || '',
     'Decided at': b.decided_at ? new Date(b.decided_at).toISOString() : '',
     'Decision note': b.decision_note || '',
+    '한국 내 유통 유무': b.korea_distribution || '',
+    '소스 경로': b.source_url || '',
     'Notes': buildNotes(b),
   });
   const esc = v => { if (v == null) return ''; let s = String(v); if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'; return s; };
