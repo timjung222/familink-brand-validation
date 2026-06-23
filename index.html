@@ -1529,19 +1529,20 @@
       <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--success);flex-shrink:0;"></span>
         <span style="flex:1">그린라이트:</span>
-        <input type="number" id="rate-th-green" min="1" max="100" step="1" style="width:80px;text-align:right">
-        <span>% 이상</span>
+        <input type="number" id="rate-th-green" min="2" max="100" step="1" style="width:80px;text-align:right">
+        <span style="min-width:48px">% 이상</span>
       </label>
       <label style="display:flex;align-items:center;gap:10px;font-size:13px;">
         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--warning);flex-shrink:0;"></span>
         <span style="flex:1">옐로우:</span>
-        <input type="number" id="rate-th-yellow" min="0" max="99" step="1" style="width:80px;text-align:right">
-        <span>% 이상</span>
+        <input type="number" id="rate-th-yellow" min="1" max="99" step="1" style="width:80px;text-align:right">
+        <span style="min-width:48px;font-feature-settings:'tnum'">% ~ <span id="rate-th-yellow-upper">—</span>% 까지</span>
       </label>
-      <label style="display:flex;align-items:center;gap:10px;font-size:13px;opacity:0.7;">
+      <label style="display:flex;align-items:center;gap:10px;font-size:13px;opacity:0.85;">
         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--danger);flex-shrink:0;"></span>
         <span style="flex:1">레드:</span>
-        <span style="font-feature-settings:'tnum'">옐로우 미만</span>
+        <span style="font-feature-settings:'tnum';min-width:80px;text-align:right"><span id="rate-th-red-upper">—</span>%</span>
+        <span style="min-width:48px">이하</span>
       </label>
     </div>
     <div id="rate-th-preview" style="margin-top:16px;padding:12px;background:var(--panel-2);border-radius:8px;display:flex;gap:10px;align-items:center;font-size:12.5px;">
@@ -5015,10 +5016,16 @@ function openRateThresholdModal() {
   const updatePreview = () => {
     const g = parseInt(gIn.value, 10), y = parseInt(yIn.value, 10);
     if (!isFinite(g) || !isFinite(y)) return;
+    // Update computed labels
+    const yellowUpperEl = document.getElementById('rate-th-yellow-upper');
+    const redUpperEl = document.getElementById('rate-th-red-upper');
+    if (yellowUpperEl) yellowUpperEl.textContent = (g - 1);
+    if (redUpperEl) redUpperEl.textContent = (y - 1);
+    // Preview examples using the actual boundary values
     const ex = [
-      { rate: Math.min(100, g + 10), targetCls: 'rate-good' },
-      { rate: Math.round((g + y) / 2), targetCls: 'rate-mid' },
-      { rate: Math.max(0, y - 10), targetCls: 'rate-bad' },
+      { rate: Math.min(100, g + 5), targetCls: 'rate-good' },
+      { rate: Math.min(g - 1, Math.max(y, Math.round((y + g - 1) / 2))), targetCls: 'rate-mid' },
+      { rate: Math.max(0, y - 1), targetCls: 'rate-bad' },
     ];
     document.querySelectorAll('#rate-th-preview .dash-rate-badge').forEach((el, i) => {
       el.className = 'dash-rate-badge ' + ex[i].targetCls;
@@ -5035,9 +5042,9 @@ function saveRateThresholds() {
   const y = parseInt(document.getElementById('rate-th-yellow').value, 10);
   const errEl = document.getElementById('rate-th-error');
   errEl.textContent = '';
-  if (!isFinite(g) || g < 1 || g > 100) { errEl.textContent = '그린라이트는 1~100 사이여야 합니다'; return; }
-  if (!isFinite(y) || y < 0 || y > 99) { errEl.textContent = '옐로우는 0~99 사이여야 합니다'; return; }
-  if (g <= y) { errEl.textContent = '그린라이트가 옐로우보다 커야 합니다'; return; }
+  if (!isFinite(g) || g < 2 || g > 100) { errEl.textContent = '그린라이트는 2~100 사이여야 합니다'; return; }
+  if (!isFinite(y) || y < 1 || y > 99) { errEl.textContent = '옐로우는 1~99 사이여야 합니다'; return; }
+  if (g <= y) { errEl.textContent = '그린라이트는 옐로우보다 커야 합니다'; return; }
   localStorage.setItem(RATE_TH_LS, JSON.stringify({ green: g, yellow: y }));
   toast('승인 비율 색상 기준 저장됨');
   closeModal('modal-rate-threshold');
