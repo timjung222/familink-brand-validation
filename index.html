@@ -854,23 +854,59 @@
 
 
   /* ===== Monday.com-style daily activity cards ===== */
+  .dash-cards-outer {
+    position: relative;
+    margin-top: 20px;
+    min-width: 0;
+  }
   .dash-cards-wrap {
     overflow-x: auto;
     overflow-y: hidden;
-    margin-top: 20px;
-    padding-bottom: 10px;
+    padding: 4px 0 12px 0;
     -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    scroll-snap-type: x proximity;
   }
-  .dash-cards-wrap::-webkit-scrollbar { height: 10px; }
-  .dash-cards-wrap::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 5px; }
-  .dash-cards-wrap::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+  .dash-cards-wrap.dragging { cursor: grabbing; scroll-behavior: auto; }
+  .dash-cards-wrap::-webkit-scrollbar { height: 8px; }
+  .dash-cards-wrap::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+  .dash-cards-wrap::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
   .dash-cards-wrap::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
   .dash-cards {
     display: flex;
     gap: 10px;
-    min-width: min-content;
-    padding: 4px 2px 4px 2px;
+    width: max-content;
+    padding: 0 8px;
   }
+  .dash-cards > .dash-day { scroll-snap-align: end; }
+  .dash-scroll-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: background .12s, border-color .12s, transform .12s;
+  }
+  .dash-scroll-btn:hover { background: var(--accent); border-color: var(--accent); color: white; transform: translateY(-50%) scale(1.08); }
+  .dash-scroll-btn.left { left: -4px; }
+  .dash-scroll-btn.right { right: -4px; }
+  .dash-scroll-btn:disabled { opacity: 0.35; cursor: default; }
+  .dash-scroll-btn:disabled:hover { background: var(--panel); border-color: var(--border-strong); color: var(--text); transform: translateY(-50%); }
   .dash-day {
     flex: 0 0 132px;
     background: var(--panel-2);
@@ -937,7 +973,7 @@
   }
 
   /* Chart */
-  .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
+  .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; min-width: 0; overflow: hidden; }
   .chart-card .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-dim); }
   .chart-card .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .chart-card .legend .dot { width: 10px; height: 10px; border-radius: 2px; }
@@ -976,7 +1012,7 @@
   .chart-bar { transition: opacity .15s; }
   .chart-bar:hover { opacity: 0.75; }
 
-  .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 
   /* Dupe modal rows */
   .dupe-row {
@@ -1231,7 +1267,11 @@
             </div>
             <div id="dash-upload-summary" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text-dim);margin-top:6px;width:100%;"></div>
           </div>
-          <div class="dash-cards-wrap"><div class="dash-cards" id="dash-cards"></div></div>
+          <div class="dash-cards-outer">
+            <button class="dash-scroll-btn left" id="dash-scroll-left" onclick="dashScroll(-1)" title="이전" aria-label="이전">‹</button>
+            <button class="dash-scroll-btn right" id="dash-scroll-right" onclick="dashScroll(1)" title="다음" aria-label="다음">›</button>
+            <div class="dash-cards-wrap" id="dash-cards-wrap"><div class="dash-cards" id="dash-cards"></div></div>
+          </div>
         </div>
         <div class="panel hidden" id="dash-team-panel">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);">
@@ -4944,6 +4984,64 @@ function drawChart(buckets) {
     '</div>';
   }).join('');
   container.innerHTML = html;
+  // Auto-scroll to end (latest data on the right by default)
+  setupDashScroll();
+}
+
+let _dashDragState = null;
+function setupDashScroll() {
+  const wrap = document.getElementById('dash-cards-wrap');
+  if (!wrap) return;
+  // Scroll to the end so the most-recent dates are visible first
+  requestAnimationFrame(() => {
+    wrap.scrollLeft = wrap.scrollWidth;
+    updateDashScrollBtns();
+  });
+  // Click & drag scrolling (also works on mobile via touch natively)
+  wrap.onmousedown = function(e) {
+    if (e.button !== 0) return;
+    _dashDragState = {
+      startX: e.pageX,
+      startScroll: wrap.scrollLeft,
+      moved: false,
+    };
+    wrap.classList.add('dragging');
+  };
+  wrap.onmousemove = function(e) {
+    if (!_dashDragState) return;
+    const dx = e.pageX - _dashDragState.startX;
+    if (Math.abs(dx) > 3) _dashDragState.moved = true;
+    wrap.scrollLeft = _dashDragState.startScroll - dx;
+  };
+  const endDrag = function() {
+    if (_dashDragState) {
+      wrap.classList.remove('dragging');
+      _dashDragState = null;
+    }
+    updateDashScrollBtns();
+  };
+  wrap.onmouseup = endDrag;
+  wrap.onmouseleave = endDrag;
+  // Prevent click after drag
+  wrap.addEventListener('click', e => {
+    if (_dashDragState && _dashDragState.moved) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+  wrap.onscroll = updateDashScrollBtns;
+}
+function updateDashScrollBtns() {
+  const wrap = document.getElementById('dash-cards-wrap');
+  if (!wrap) return;
+  const lBtn = document.getElementById('dash-scroll-left');
+  const rBtn = document.getElementById('dash-scroll-right');
+  if (lBtn) lBtn.disabled = wrap.scrollLeft <= 1;
+  if (rBtn) rBtn.disabled = wrap.scrollLeft >= wrap.scrollWidth - wrap.clientWidth - 1;
+}
+function dashScroll(direction) {
+  const wrap = document.getElementById('dash-cards-wrap');
+  if (!wrap) return;
+  // Scroll roughly 7 days worth (~ 142px per card incl. gap)
+  const step = wrap.clientWidth * 0.8;
+  wrap.scrollBy({ left: direction * step, behavior: 'smooth' });
 }
 
 function renderUserBreakdown(all, start, end) {
