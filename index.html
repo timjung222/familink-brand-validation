@@ -1135,10 +1135,11 @@
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <h3 id="dash-chart-title">활동 추이</h3>
             <div class="legend">
-              <span><span class="dot" style="background:var(--accent)"></span>업로드</span>
               <span><span class="dot" style="background:var(--success)"></span>승인</span>
               <span><span class="dot" style="background:var(--danger)"></span>반려</span>
+              <span class="muted" style="font-size:11px;color:var(--text-faint)">· 업로드는 막대 제외 (합계는 상단)</span>
             </div>
+            <div id="dash-upload-summary" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text-dim);margin-top:6px;width:100%;"></div>
           </div>
           <div class="chart-wrap"><svg class="chart-svg" id="dash-chart" viewBox="0 0 1280 360" preserveAspectRatio="xMidYMid meet"></svg></div>
         </div>
@@ -4626,6 +4627,16 @@ async function renderDashboard() {
     ({ daily: '일별 활동', weekly: '주간 활동', monthly: '월별 활동' })[dashPeriod];
 
   drawChart(buckets);
+  // Separate upload summary (excluded from bar chart to keep scale readable)
+  const totalUploads = buckets.reduce((a, b) => a + (b.uploaded || 0), 0);
+  const peakBucket = buckets.reduce((p, c) => (c.uploaded || 0) > (p?.uploaded || 0) ? c : p, null);
+  const upEl = document.getElementById('dash-upload-summary');
+  if (upEl) {
+    upEl.innerHTML = totalUploads
+      ? '<span><b style="color:var(--accent)">' + fmtInt(totalUploads) + '</b> 업로드 (기간 합계)</span>' +
+        (peakBucket && peakBucket.uploaded ? '<span>· 최고: ' + escapeHtml(peakBucket.label) + ' <b>' + fmtInt(peakBucket.uploaded) + '</b></span>' : '')
+      : '<span class="muted" style="color:var(--text-faint)">기간 내 업로드 없음</span>';
+  }
 
   const panel = document.getElementById('dash-userpanel');
   if (currentUser.role === 'admin' || currentUser.role === 'manager') {
@@ -4797,13 +4808,15 @@ function drawChart(buckets) {
   const svg = document.getElementById('dash-chart');
   const W = 1280, H = 360, PAD_L = 52, PAD_R = 20, PAD_T = 30, PAD_B = 56;
   const chartW = W - PAD_L - PAD_R, chartH = H - PAD_T - PAD_B;
+  // Bars only show decisions (approved/rejected) — upload bar removed because it dwarfs the others.
+  // Upload totals shown separately in the chart header.
   const maxV = Math.max(1,
-    ...buckets.map(b => Math.max(b.uploaded || 0, b.approved || 0, b.rejected || 0))
+    ...buckets.map(b => Math.max(b.approved || 0, b.rejected || 0))
   );
   const niceMax = niceCeil(maxV);
   const groupW = chartW / buckets.length;
-  const barW = Math.max(3, Math.min(18, groupW * 0.26));
-  const innerGap = Math.max(1.5, barW * 0.22);
+  const barW = Math.max(4, Math.min(28, groupW * 0.34));
+  const innerGap = Math.max(2, barW * 0.22);
   let html = '';
 
   // Y grid (6 steps)
@@ -4825,13 +4838,13 @@ function drawChart(buckets) {
   // X axis line
   html += '<line class="chart-axis" x1="' + PAD_L + '" y1="' + (PAD_T + chartH) + '" x2="' + (W - PAD_R) + '" y2="' + (PAD_T + chartH) + '"/>';
 
-  // Bars (upload | approved | rejected) — and total above each group
-  const COLORS = ['var(--accent)', 'var(--success)', 'var(--danger)'];
+  // Bars (approved | rejected) — upload no longer in bar to keep scale readable
+  const COLORS = ['var(--success)', 'var(--danger)'];
   buckets.forEach((b, i) => {
     const cx = PAD_L + groupW * (i + 0.5);
-    const totalW = barW * 3 + innerGap * 2;
+    const totalW = barW * 2 + innerGap;
     const x0 = cx - totalW / 2;
-    const vals = [b.uploaded || 0, b.approved || 0, b.rejected || 0];
+    const vals = [b.approved || 0, b.rejected || 0];
     let maxBarTopY = PAD_T + chartH;
     vals.forEach((v, k) => {
       const h = chartH * (v / niceMax);
@@ -4839,7 +4852,7 @@ function drawChart(buckets) {
       const y = PAD_T + chartH - h;
       if (v > 0) {
         html += '<rect class="chart-bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(2, h).toFixed(1) + '" rx="2.5" fill="' + COLORS[k] + '"/>';
-        if (h > 20 && barW > 7) {
+        if (h > 20 && barW > 9) {
           html += '<text class="chart-value" x="' + (x + barW/2).toFixed(1) + '" y="' + (y - 5).toFixed(1) + '" text-anchor="middle">' + fmtInt(v) + '</text>';
         }
         if (y < maxBarTopY) maxBarTopY = y;
