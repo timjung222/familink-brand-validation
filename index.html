@@ -852,6 +852,90 @@
   .period-toggle button { padding: 6px 14px; background: transparent; border: none; font-size: 12.5px; color: var(--text-dim); border-radius: 5px; font-weight: 500; transition: all .12s; }
   .period-toggle button.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
 
+
+  /* ===== Monday.com-style daily activity cards ===== */
+  .dash-cards-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin-top: 20px;
+    padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dash-cards-wrap::-webkit-scrollbar { height: 10px; }
+  .dash-cards-wrap::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 5px; }
+  .dash-cards-wrap::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+  .dash-cards-wrap::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  .dash-cards {
+    display: flex;
+    gap: 10px;
+    min-width: min-content;
+    padding: 4px 2px 4px 2px;
+  }
+  .dash-day {
+    flex: 0 0 132px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color .15s, transform .12s;
+    position: relative;
+  }
+  .dash-day:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .dash-day.weekend { background: linear-gradient(180deg, rgba(239,68,68,0.03) 0%, var(--panel-2) 60%); }
+  .dash-day.today { box-shadow: inset 0 0 0 2px var(--accent); }
+  .dash-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+  .dash-day-date { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; font-feature-settings: 'tnum'; }
+  .dash-day-name { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+  .dash-day.weekend .dash-day-name { color: var(--danger); }
+  .dash-rate-badge {
+    align-self: flex-start;
+    display: inline-flex; align-items: center;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    font-feature-settings: 'tnum';
+    letter-spacing: -0.02em;
+  }
+  .dash-rate-badge.rate-good { background: rgba(16,185,129,0.16); color: var(--success); }
+  .dash-rate-badge.rate-mid { background: rgba(245,158,11,0.16); color: var(--warning); }
+  .dash-rate-badge.rate-bad { background: rgba(239,68,68,0.16); color: var(--danger); }
+  .dash-rate-badge.rate-none { background: var(--panel-3); color: var(--text-faint); font-weight: 500; font-size: 11px; padding: 4px 9px; }
+  .dash-metric {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-feature-settings: 'tnum';
+  }
+  .dash-metric .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dash-metric .lbl { font-size: 10.5px; color: var(--text-dim); font-weight: 500; flex: 1; }
+  .dash-metric .num { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+  .dash-metric.approved .dot { background: var(--success); }
+  .dash-metric.approved .num { color: var(--success); }
+  .dash-metric.rejected .dot { background: var(--danger); }
+  .dash-metric.rejected .num { color: var(--danger); }
+  .dash-metric.empty { opacity: 0.5; }
+  .dash-metric.empty .num { color: var(--text-faint); font-weight: 500; font-size: 14px; }
+  .dash-upload-line {
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px dashed var(--border);
+    padding-top: 7px;
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-feature-settings: 'tnum';
+  }
+  .dash-upload-line .up-num { font-weight: 700; color: var(--accent); }
+  .dash-upload-line.empty .up-num { color: var(--text-faint); font-weight: 500; }
+  .dash-empty-state {
+    padding: 40px 20px; text-align: center; color: var(--text-faint);
+    background: var(--panel-2); border-radius: 12px;
+  }
+
   /* Chart */
   .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
   .chart-card .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-dim); }
@@ -1147,7 +1231,7 @@
             </div>
             <div id="dash-upload-summary" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text-dim);margin-top:6px;width:100%;"></div>
           </div>
-          <div class="chart-wrap"><svg class="chart-svg" id="dash-chart" viewBox="0 0 1280 360" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="dash-cards-wrap"><div class="dash-cards" id="dash-cards"></div></div>
         </div>
         <div class="panel hidden" id="dash-team-panel">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);">
@@ -4811,81 +4895,55 @@ function niceCeil(v) {
 }
 
 function drawChart(buckets) {
-  const svg = document.getElementById('dash-chart');
-  const W = 1280, H = 360, PAD_L = 52, PAD_R = 20, PAD_T = 30, PAD_B = 56;
-  const chartW = W - PAD_L - PAD_R, chartH = H - PAD_T - PAD_B;
-  // Bars only show decisions (approved/rejected) — upload bar removed because it dwarfs the others.
-  // Upload totals shown separately in the chart header.
-  const maxV = Math.max(1,
-    ...buckets.map(b => Math.max(b.approved || 0, b.rejected || 0))
-  );
-  const niceMax = niceCeil(maxV);
-  const groupW = chartW / buckets.length;
-  const barW = Math.max(4, Math.min(28, groupW * 0.34));
-  const innerGap = Math.max(2, barW * 0.22);
-  let html = '';
-
-  // Y grid (6 steps)
-  for (let i = 0; i <= 6; i++) {
-    const y = PAD_T + chartH - (chartH * i / 6);
-    const v = Math.round(niceMax * i / 6);
-    html += '<line class="chart-grid" x1="' + PAD_L + '" y1="' + y + '" x2="' + (W - PAD_R) + '" y2="' + y + '"/>';
-    html += '<text class="chart-label-y" x="' + (PAD_L - 10) + '" y="' + (y + 4) + '" text-anchor="end">' + fmtInt(v) + '</text>';
+  // Monday.com-style daily activity cards — each day is a tile with clear 3-value display
+  const container = document.getElementById('dash-cards');
+  if (!container) return;
+  if (!buckets || !buckets.length) {
+    container.innerHTML = '<div class="dash-empty-state">기간 내 데이터가 없습니다.</div>';
+    return;
   }
-  // Weekend zones (daily mode only)
-  if (buckets.some(b => b.isWeekend)) {
-    buckets.forEach((b, i) => {
-      if (!b.isWeekend) return;
-      const cx = PAD_L + groupW * (i + 0.5);
-      const zoneW = groupW;
-      html += '<rect class="chart-zone-weekend" x="' + (cx - zoneW/2).toFixed(1) + '" y="' + PAD_T + '" width="' + zoneW.toFixed(1) + '" height="' + chartH + '"/>';
-    });
-  }
-  // X axis line
-  html += '<line class="chart-axis" x1="' + PAD_L + '" y1="' + (PAD_T + chartH) + '" x2="' + (W - PAD_R) + '" y2="' + (PAD_T + chartH) + '"/>';
-
-  // Bars (approved | rejected) — upload no longer in bar to keep scale readable
-  const COLORS = ['var(--success)', 'var(--danger)'];
-  buckets.forEach((b, i) => {
-    const cx = PAD_L + groupW * (i + 0.5);
-    const totalW = barW * 2 + innerGap;
-    const x0 = cx - totalW / 2;
-    const vals = [b.approved || 0, b.rejected || 0];
-    let maxBarTopY = PAD_T + chartH;
-    vals.forEach((v, k) => {
-      const h = chartH * (v / niceMax);
-      const x = x0 + k * (barW + innerGap);
-      const y = PAD_T + chartH - h;
-      if (v > 0) {
-        html += '<rect class="chart-bar" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(2, h).toFixed(1) + '" rx="2.5" fill="' + COLORS[k] + '"/>';
-        if (h > 20 && barW > 9) {
-          html += '<text class="chart-value" x="' + (x + barW/2).toFixed(1) + '" y="' + (y - 5).toFixed(1) + '" text-anchor="middle">' + fmtInt(v) + '</text>';
-        }
-        if (y < maxBarTopY) maxBarTopY = y;
-      }
-    });
-    // Approval rate above bar group (replaces total — the duplicate number)
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const html = buckets.map(b => {
     const approved = b.approved || 0;
     const rejected = b.rejected || 0;
-    const decTotal = approved + rejected;
-    if (decTotal > 0) {
-      const rate = Math.round(approved * 100 / decTotal);
-      const rateColor = rate >= 70 ? 'var(--success)' : (rate >= 40 ? 'var(--warning)' : 'var(--danger)');
-      html += '<text class="chart-rate" x="' + cx.toFixed(1) + '" y="' + Math.max(PAD_T + 14, maxBarTopY - 12).toFixed(1) + '" text-anchor="middle" fill="' + rateColor + '">' + rate + '%</text>';
+    const uploaded = b.uploaded || 0;
+    const total = approved + rejected;
+    let rateBadge;
+    if (total > 0) {
+      const rate = Math.round(approved * 100 / total);
+      const cls = rate >= 70 ? 'rate-good' : (rate >= 40 ? 'rate-mid' : 'rate-bad');
+      rateBadge = '<div class="dash-rate-badge ' + cls + '">' + rate + '% 승인</div>';
+    } else {
+      rateBadge = '<div class="dash-rate-badge rate-none">기록 없음</div>';
     }
-
-    // X label — choose density per period
-    let showLabel = true;
-    if (buckets.length > 18) showLabel = i % 2 === 0;
-    if (showLabel) {
-      const labelClass = 'chart-label-x' + (b.isWeekend ? ' weekend' : '');
-      html += '<text class="' + labelClass + '" x="' + cx.toFixed(1) + '" y="' + (PAD_T + chartH + 20) + '" text-anchor="middle">' + escapeHtml(b.label) + '</text>';
-      if (b.sub) {
-        html += '<text class="chart-label-x-sub" x="' + cx.toFixed(1) + '" y="' + (PAD_T + chartH + 36) + '" text-anchor="middle">' + escapeHtml(b.sub) + '</text>';
-      }
-    }
-  });
-  svg.innerHTML = html;
+    const todayCls = (b.dateKey && b.dateKey === todayKey) ? ' today' : '';
+    const wkndCls = b.isWeekend ? ' weekend' : '';
+    const approvedRow = '<div class="dash-metric approved' + (approved ? '' : ' empty') + '">' +
+      '<span class="dot"></span>' +
+      '<span class="lbl">승인</span>' +
+      '<span class="num">' + fmtInt(approved) + '</span>' +
+    '</div>';
+    const rejectedRow = '<div class="dash-metric rejected' + (rejected ? '' : ' empty') + '">' +
+      '<span class="dot"></span>' +
+      '<span class="lbl">반려</span>' +
+      '<span class="num">' + fmtInt(rejected) + '</span>' +
+    '</div>';
+    const uploadLine = '<div class="dash-upload-line' + (uploaded ? '' : ' empty') + '">' +
+      '<span>업로드</span>' +
+      '<span class="up-num">' + fmtInt(uploaded) + '</span>' +
+    '</div>';
+    return '<div class="dash-day' + todayCls + wkndCls + '">' +
+      '<div class="dash-day-head">' +
+        '<span class="dash-day-date">' + escapeHtml(b.label) + '</span>' +
+        '<span class="dash-day-name">' + escapeHtml(b.sub || '') + '</span>' +
+      '</div>' +
+      rateBadge +
+      approvedRow +
+      rejectedRow +
+      uploadLine +
+    '</div>';
+  }).join('');
+  container.innerHTML = html;
 }
 
 function renderUserBreakdown(all, start, end) {
