@@ -4719,6 +4719,7 @@ function buildBuckets(now, period) {
 
 async function renderDashboard() {
   const now = Date.now();
+  await syncRateThresholdsFromServer();
   const buckets = buildBuckets(now, dashPeriod);
 
   // Populate user filter
@@ -4980,18 +4981,41 @@ function niceCeil(v) {
   return m * pow;
 }
 
-// ===== Rate threshold settings (per-user localStorage) =====
+// ===== Rate threshold settings (synced via app_settings, cached in localStorage) =====
 const RATE_TH_LS = 'familink_rate_thresholds_v1';
 const RATE_TH_DEFAULT = { green: 70, yellow: 40 };
+function _parseTh(o) {
+  if (!o) return null;
+  const g = parseInt(o.green, 10), y = parseInt(o.yellow, 10);
+  if (!isFinite(g) || !isFinite(y) || g <= y || g > 100 || y < 0) return null;
+  return { green: g, yellow: y };
+}
 function loadRateThresholds() {
+  // Synchronous: app_settings cache, then localStorage cache, then default
+  if (_appSettings && _appSettings.rate_thresholds) {
+    const fromSrv = _parseTh(_appSettings.rate_thresholds);
+    if (fromSrv) return fromSrv;
+  }
   try {
     const raw = localStorage.getItem(RATE_TH_LS);
-    if (!raw) return { ...RATE_TH_DEFAULT };
-    const o = JSON.parse(raw);
-    const g = parseInt(o.green, 10), y = parseInt(o.yellow, 10);
-    if (!isFinite(g) || !isFinite(y) || g <= y || g > 100 || y < 0) return { ...RATE_TH_DEFAULT };
-    return { green: g, yellow: y };
-  } catch(e) { return { ...RATE_TH_DEFAULT }; }
+    if (raw) {
+      const fromLs = _parseTh(JSON.parse(raw));
+      if (fromLs) return fromLs;
+    }
+  } catch(e) {}
+  return { ...RATE_TH_DEFAULT };
+}
+async function syncRateThresholdsFromServer() {
+  try {
+    const { data } = await sb.from('app_settings').select('value').eq('key', 'rate_thresholds').maybeSingle();
+    if (data && data.value) {
+      const parsed = _parseTh(data.value);
+      if (parsed) {
+        _appSettings.rate_thresholds = parsed;
+        localStorage.setItem(RATE_TH_LS, JSON.stringify(parsed));
+      }
+    }
+  } catch(e) { console.warn('syncRateThresholdsFromServer:', e); }
 }
 function getRateClass(rate) {
   const th = loadRateThresholds();
@@ -5037,7 +5061,7 @@ function openRateThresholdModal() {
   updatePreview();
   document.getElementById('modal-rate-threshold').classList.add('active');
 }
-function saveRateThresholds() {
+async function saveRateThresholds() {
   const g = parseInt(document.getElementById('rate-th-green').value, 10);
   const y = parseInt(document.getElementById('rate-th-yellow').value, 10);
   const errEl = document.getElementById('rate-th-error');
@@ -5045,8 +5069,14 @@ function saveRateThresholds() {
   if (!isFinite(g) || g < 2 || g > 100) { errEl.textContent = '그린라이트는 2~100 사이여야 합니다'; return; }
   if (!isFinite(y) || y < 1 || y > 99) { errEl.textContent = '옐로우는 1~99 사이여야 합니다'; return; }
   if (g <= y) { errEl.textContent = '그린라이트는 옐로우보다 커야 합니다'; return; }
-  localStorage.setItem(RATE_TH_LS, JSON.stringify({ green: g, yellow: y }));
-  toast('승인 비율 색상 기준 저장됨');
+  const value = { green: g, yellow: y };
+  localStorage.setItem(RATE_TH_LS, JSON.stringify(value));  // local cache for instant load next time
+  try {
+    await saveAppSetting('rate_thresholds', value);
+    toast('승인 비율 색상 기준 저장됨 (PC/모바일 동기화)');
+  } catch(e) {
+    toast('서버 저장 실패: 로컬에만 적용됨', 'error');
+  }
   closeModal('modal-rate-threshold');
   refreshRateThresholdLabel();
   if (typeof renderDashboard === 'function') renderDashboard();
