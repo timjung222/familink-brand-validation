@@ -2828,7 +2828,20 @@ const CSV_HEADER_ALIASES = {
   'Source URL': 'source_url',
   'Source Path': 'source_url',
   'SourceURL': 'source_url',
+  '중요': '__star_raw',
+  'Star': '__star_raw',
+  'Starred': '__star_raw',
+  'Important': '__star_raw',
 };
+
+// Helper: interpret "중요" CSV column value as boolean for is_starred
+function _parseStarValue(v) {
+  if (v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return false;
+  if (['x','no','n','0','false'].includes(s)) return false;
+  return true; // any non-empty non-falsy value = starred
+}
 function csvToObjects(text) {
   const rows = parseCSV(text); if (!rows.length) return [];
   const headers = rows[0].map(h => {
@@ -2876,6 +2889,7 @@ const PIPEDRIVE_HEADER_MAP = {
   'Source': 'source_url',
   'Source URL': 'source_url',
   'Notes': '__notes_parse',  // Contains Categories/Rank/Platform rank/Domain created
+  '중요': '__star_raw',
 };
 function isPipedriveFormat(rows) {
   if (!rows || !rows.length) return false;
@@ -2913,6 +2927,8 @@ function normalizePipedriveRows(rawRows) {
       } else if (mapped === '__notes_parse') {
         const parsed = _parsePipedriveNotes(v);
         Object.assign(out, parsed);
+      } else if (mapped === '__star_raw') {
+        out.is_starred = _parseStarValue(v);
       } else if (mapped) {
         // Special transforms
         if (mapped === 'phones' || mapped === 'emails') {
@@ -3013,6 +3029,11 @@ async function importBrands(rawRows) {
   let dupesNoChanges = 0, skipped = 0;
   const nowIso = new Date().toISOString();
   rawRows.forEach((r) => {
+    // Resolve __star_raw to is_starred if present
+    if (r.__star_raw !== undefined) {
+      r.is_starred = _parseStarValue(r.__star_raw);
+      delete r.__star_raw;
+    }
     const dom = (r.domain || '').toLowerCase();
     if (!dom) { skipped++; return; }
     const ex = byDomain[dom];
@@ -3077,12 +3098,15 @@ async function importBrands(rawRows) {
       percent: pct, done: inserted, total: toAdd.length,
       elapsed, remaining
     });
-    const { error } = await sb.from('brands').insert(slice);
+    // Use UPSERT with ignoreDuplicates so race conditions and cache misses don't break the entire upload.
+    // If a domain already exists in DB (not in our dedupe cache), it'll be skipped silently.
+    const { error, data: insRet } = await sb.from('brands').upsert(slice, { onConflict: 'domain', ignoreDuplicates: true }).select('id');
     if (error) {
-      setUploadProgress({ status: '추가 실패', kind: 'error' });
+      setUploadProgress({ status: '추가 실패: ' + error.message, kind: 'error' });
       throw new Error(error.message);
     }
-    inserted += slice.length;
+    // Only count actually inserted rows (returned ones); ignored duplicates won't be in insRet
+    inserted += (insRet || []).length;
     // Live update brand list stats if visible
     if (!document.getElementById('view-brands').classList.contains('hidden')) {
       try { renderBrands(); } catch(e) {}
