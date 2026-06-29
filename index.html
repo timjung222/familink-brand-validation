@@ -3450,6 +3450,7 @@ function setupHeaderDnD() {
 }
 
 async function renderBrands() {
+  populateViewAsUserDropdown();
   const loadingEl = document.getElementById('loading-state');
   const tableEl = document.querySelector('#view-brands table.brands');
   const isFirstLoad = _currentPageBrands.length === 0 && _currentTotal === 0;
