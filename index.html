@@ -1861,10 +1861,21 @@ function _escLike(s) { return String(s || '').replace(/[\\%_]/g, ch => '\\' + ch
 function buildBrandFilter(q, f) {
   if (!f) f = {};
   if (_viewAsUser) {
-    q = q.eq('assigned_to', _viewAsUser);
     const tgt = getProfiles().find(p => p.username === _viewAsUser);
-    if (tgt && Array.isArray(tgt.visible_statuses) && tgt.visible_statuses.length > 0) {
-      q = q.in('review_status', tgt.visible_statuses);
+    if (tgt) {
+      if (tgt.role === 'team') {
+        // Team users see brands assigned to them OR decided by them
+        q = q.or('assigned_to.eq.' + _viewAsUser + ',decided_by.eq.' + _viewAsUser);
+        if (Array.isArray(tgt.visible_statuses) && tgt.visible_statuses.length > 0) {
+          q = q.in('review_status', tgt.visible_statuses);
+        }
+      } else if (tgt.role === 'appointment_setter') {
+        // Appt setters: only visible_statuses constraint (no per-user assignment)
+        if (Array.isArray(tgt.visible_statuses) && tgt.visible_statuses.length > 0) {
+          q = q.in('review_status', tgt.visible_statuses);
+        }
+      }
+      // For managers: no scoping (they see all brands like admin)
     }
   }
   if (f.status === '__dup') q = q.not('pending_update', 'is', null);
@@ -2819,14 +2830,20 @@ function setViewAsUser(username) {
 function populateViewAsUserDropdown() {
   const sel = document.getElementById('view-as-user');
   if (!sel) return;
-  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
+  if (!currentUser || currentUser.role !== 'admin') {
+    // Only admins can impersonate (managers cannot view as other managers/admins for safety)
     sel.classList.add('hidden');
     return;
   }
   sel.classList.remove('hidden');
-  const users = getProfiles().filter(u => u.role === 'team' || u.role === 'appointment_setter');
-  sel.innerHTML = '<option value="">👁 내 시점 (' + currentUser.role + ')</option>' +
-    users.map(u => '<option value="' + escapeAttr(u.username) + '">👤 ' + escapeHtml(u.name) + ' (' + u.role + ') 시점</option>').join('');
+  // Order: managers first, then team, then appointment_setter — exclude admins (no point) and self
+  const all = getProfiles().filter(u => u.username !== currentUser.username && u.role !== 'admin');
+  const roleOrder = { manager: 0, team: 1, appointment_setter: 2 };
+  const users = all.sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9) || a.name.localeCompare(b.name));
+  const roleIcon = { manager: '👔', team: '👤', appointment_setter: '📞' };
+  const roleLabel = { manager: 'manager', team: 'team', appointment_setter: 'setter' };
+  sel.innerHTML = '<option value="">👁 내 시점 (admin)</option>' +
+    users.map(u => '<option value="' + escapeAttr(u.username) + '">' + (roleIcon[u.role] || '👤') + ' ' + escapeHtml(u.name) + ' (' + (roleLabel[u.role] || u.role) + ') 시점</option>').join('');
   sel.value = _viewAsUser;
 }
 
