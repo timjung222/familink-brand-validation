@@ -841,6 +841,7 @@ function renderFilterBar() {
   const all = [
     { status: '', label: '전체' },
     { status: '__starred', label: '★ 중요' },
+    { status: '__mine', label: '내가 결정한' },
     { status: 'pending', label: '대기중' },
     { status: '__assigned', label: '할당됨' },
     { status: 'approved', label: '승인' },
@@ -885,6 +886,7 @@ async function fetchBrandsPage() {
   if (currentFilters.status === '__starred') q = q.eq('is_starred', true);
   else if (currentFilters.status === '__dup') q = q.not('pending_update', 'is', null);
   else if (currentFilters.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
+  else if (currentFilters.status === '__mine') q = q.eq('decided_by', currentUser.username);
   else if (currentFilters.status) q = q.eq('review_status', currentFilters.status);
   if (currentFilters.country) q = q.eq('country_code', currentFilters.country);
   if (currentFilters.category) q = q.like('categories', '%' + currentFilters.category + '%');

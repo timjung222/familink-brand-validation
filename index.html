@@ -1184,6 +1184,7 @@
         <select id="filter-status">
           <option value="">전체 상태</option>
           <option value="__starred">★ 중요 표시</option>
+          <option value="__mine">내가 결정한</option>
           <option value="pending">대기중</option>
           <option value="__assigned">할당됨</option>
           <option value="approved">승인</option>
@@ -1849,6 +1850,10 @@ function buildBrandFilter(q, f) {
   if (f.status === '__dup') q = q.not('pending_update', 'is', null);
   else if (f.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
   else if (f.status === '__starred') q = q.eq('is_starred', true);
+  else if (f.status === '__mine') {
+    const me = (window.currentUser && currentUser.username) || '__none__';
+    q = q.eq('decided_by', me);
+  }
   else if (f.status) q = q.eq('review_status', f.status);
   if (f.country) q = q.eq('country_code', f.country);
   if (f.assignee === '__unassigned') q = q.is('assigned_to', null);
@@ -1958,21 +1963,23 @@ async function loadBrandStats(filters) {
     if (opts.status === '__dup') q = q.not('pending_update', 'is', null);
     else if (opts.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
     else if (opts.status === '__starred') q = q.eq('is_starred', true);
+    else if (opts.status === '__mine') q = q.eq('decided_by', (window.currentUser && currentUser.username) || '__none__');
     else if (opts.status) q = q.eq('review_status', opts.status);
     // For __assigned card, also clear assignee filter so we count ALL assigned brands
     const overrides = opts.status === '__assigned' ? { status: '', assignee: '' } : { status: '' };
     q = buildBrandFilter(q, Object.assign({}, baseFilters, overrides));
     return q.then(r => r.count || 0);
   }
-  const [total, pending, approved, rejected, dupes, assigned] = await Promise.all([
+  const [total, pending, approved, rejected, dupes, assigned, mine] = await Promise.all([
     makeCount({}),
     makeCount({ status: 'pending' }),
     makeCount({ status: 'approved' }),
     makeCount({ status: 'rejected' }),
     makeCount({ status: '__dup' }),
     makeCount({ status: '__assigned' }),
+    currentUser && currentUser.username ? makeCount({ status: '__mine' }) : Promise.resolve(0),
   ]);
-  return { total, pending, approved, rejected, dupes, assigned };
+  return { total, pending, approved, rejected, dupes, assigned, mine };
 }
 
 // One-time fetch of distinct filter values (cached for session).
@@ -3549,8 +3556,7 @@ async function renderBrands() {
     '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
   if (stats.dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
   if (currentUser.role === 'team') {
-    // For team, "my assignment" = total visible (RLS limits to their assigned)
-    statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({assignee:\'' + escapeAttr(currentUser.username) + '\'})"><div class="label">내 할당</div><div class="value">' + fmtInt(stats.total) + '</div></div>';
+    statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__mine\'})"><div class="label">내가 결정한</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.mine || 0) + '</div></div>';
   }
   document.getElementById('stats').innerHTML = statsHtml;
 
