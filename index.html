@@ -806,6 +806,17 @@
   .dup-bulk-bar.hidden { display: none !important; }
   .dup-bulk-bar b { color: var(--warning); }
   .stat-card.assigned .value { color: var(--accent); }
+  .stat-card.unassigned .value { color: var(--text-dim); }
+  .impersonate-banner {
+    background: linear-gradient(90deg, rgba(94,106,210,0.16), rgba(94,106,210,0.04));
+    border: 1px solid rgba(94,106,210,0.45);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
+  .impersonate-banner b { color: var(--accent); }
+  .impersonate-banner.hidden { display: none !important; }
   .bulk-bar {
     position: sticky; bottom: 20px; margin: 16px auto 0; max-width: 720px;
     background: var(--text); color: var(--bg);
@@ -1176,8 +1187,10 @@
           <button id="btn-dedupe" class="btn btn-sm hidden" onclick="openDedupe()">서브도메인 정리</button>
           <button id="btn-bulk-assign" class="btn btn-sm hidden" onclick="openBulkAssign()">랜덤 일괄 할당</button>
           <button id="btn-download" class="btn btn-sm btn-primary hidden" onclick="downloadCSV()">CSV 다운로드</button>
+          <select id="view-as-user" class="hidden" onchange="setViewAsUser(this.value)" style="margin-left:6px;font-size:12px;padding:6px 10px;border-radius:6px;background:var(--panel);border:1px solid var(--border-strong);"><option value="">👁 내 시점 (admin)</option></select>
         </div>
       </div>
+      <div id="impersonate-banner" class="impersonate-banner hidden"><span>👁 <b id="view-as-name">User</b> 시점으로 보는 중 (이 팀원이 보는 화면과 동일)</span><span style="flex:1"></span><button class="btn btn-xs" onclick="setViewAsUser('')">내 시점으로</button></div>
       <div class="stats" id="stats"></div>
       <div class="toolbar">
         <input id="search" type="search" placeholder="도메인, 카테고리, 도시 검색...">
@@ -1847,6 +1860,13 @@ async function dbDeleteBrand(id) {
 function _escLike(s) { return String(s || '').replace(/[\\%_]/g, ch => '\\' + ch); }
 function buildBrandFilter(q, f) {
   if (!f) f = {};
+  if (_viewAsUser) {
+    q = q.eq('assigned_to', _viewAsUser);
+    const tgt = getProfiles().find(p => p.username === _viewAsUser);
+    if (tgt && Array.isArray(tgt.visible_statuses) && tgt.visible_statuses.length > 0) {
+      q = q.in('review_status', tgt.visible_statuses);
+    }
+  }
   if (f.status === '__dup') q = q.not('pending_update', 'is', null);
   else if (f.status === '__assigned') q = q.not('assigned_to', 'is', null).eq('review_status', 'pending');
   else if (f.status === '__starred') q = q.eq('is_starred', true);
@@ -1970,7 +1990,12 @@ async function loadBrandStats(filters) {
     q = buildBrandFilter(q, Object.assign({}, baseFilters, overrides));
     return q.then(r => r.count || 0);
   }
-  const [total, pending, approved, rejected, dupes, assigned, mine] = await Promise.all([
+  function makeUnassignedCount() {
+    let q = sb.from('brands').select('id', { count: 'exact', head: true }).is('assigned_to', null);
+    q = buildBrandFilter(q, Object.assign({}, baseFilters, { status: '', assignee: '' }));
+    return q.then(r => r.count || 0);
+  }
+  const [total, pending, approved, rejected, dupes, assigned, mine, unassigned] = await Promise.all([
     makeCount({}),
     makeCount({ status: 'pending' }),
     makeCount({ status: 'approved' }),
@@ -1978,8 +2003,9 @@ async function loadBrandStats(filters) {
     makeCount({ status: '__dup' }),
     makeCount({ status: '__assigned' }),
     currentUser && currentUser.username ? makeCount({ status: '__mine' }) : Promise.resolve(0),
+    makeUnassignedCount(),
   ]);
-  return { total, pending, approved, rejected, dupes, assigned, mine };
+  return { total, pending, approved, rejected, dupes, assigned, mine, unassigned };
 }
 
 // One-time fetch of distinct filter values (cached for session).
@@ -2078,6 +2104,7 @@ function renderPagination(total) {
 }
 
 // ----- Selection state -----
+let _viewAsUser = '';
 let selectedBrandIds = new Set();
 let _filteredIds = []; // IDs after filter + sort (all pages combined)
 
@@ -2770,6 +2797,39 @@ function buildTabs() {
   ).join('');
 }
 // Navigate to brand list with filters preset (used by clickable stats and team panel cells)
+function setViewAsUser(username) {
+  _viewAsUser = username || '';
+  const banner = document.getElementById('impersonate-banner');
+  if (banner) {
+    if (_viewAsUser) {
+      const u = getProfiles().find(p => p.username === _viewAsUser);
+      document.getElementById('view-as-name').textContent = (u && u.name) || _viewAsUser;
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+  const sel = document.getElementById('view-as-user');
+  if (sel && sel.value !== _viewAsUser) sel.value = _viewAsUser;
+  invalidateBrandsCache();
+  selectedBrandIds.clear();
+  currentPage = 1;
+  renderBrands();
+}
+function populateViewAsUserDropdown() {
+  const sel = document.getElementById('view-as-user');
+  if (!sel) return;
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
+    sel.classList.add('hidden');
+    return;
+  }
+  sel.classList.remove('hidden');
+  const users = getProfiles().filter(u => u.role === 'team' || u.role === 'appointment_setter');
+  sel.innerHTML = '<option value="">👁 내 시점 (' + currentUser.role + ')</option>' +
+    users.map(u => '<option value="' + escapeAttr(u.username) + '">👤 ' + escapeHtml(u.name) + ' (' + u.role + ') 시점</option>').join('');
+  sel.value = _viewAsUser;
+}
+
 function navToFilteredBrands(opts) {
   opts = opts || {};
   // Reset all filters first for a clean state
@@ -3553,6 +3613,7 @@ async function renderBrands() {
     '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
     '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
     '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\'})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
+    '<div class="stat-card unassigned clickable" onclick="navToFilteredBrands({assignee:\'__unassigned\'})"><div class="label">미할당</div><div class="value" style="color:var(--text-dim)">' + fmtInt(stats.unassigned || 0) + '</div></div>' +
     '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
     '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
   if (stats.dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
@@ -4050,6 +4111,7 @@ async function _refreshStatsNow() {
       '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
       '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
       '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\'})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
+      '<div class="stat-card unassigned clickable" onclick="navToFilteredBrands({assignee:\'__unassigned\'})"><div class="label">미할당</div><div class="value" style="color:var(--text-dim)">' + fmtInt(stats.unassigned || 0) + '</div></div>' +
       '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
       '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
     if (stats.dupes) html += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
