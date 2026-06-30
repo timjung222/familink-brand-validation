@@ -5206,10 +5206,10 @@ async function renderTeamAssignmentPanelRPC() {
     return;
   }
   tbody.innerHTML = rows.map(r => {
-    const navAll = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "'})";
+    const navAll = "navToFilteredBrands({touchedBy:'" + escapeAttr(r.uname) + "'})";
     const navPending = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'pending'})";
-    const navApproved = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'approved'})";
-    const navRejected = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'rejected'})";
+    const navApproved = "navToFilteredBrands({decidedBy:'" + escapeAttr(r.uname) + "', status:'approved'})";
+    const navRejected = "navToFilteredBrands({decidedBy:'" + escapeAttr(r.uname) + "', status:'rejected'})";
     return '<tr>' +
       '<td><b>' + escapeHtml(r.name) + '</b><div class="muted">@' + escapeHtml(r.uname) + '</div></td>' +
       '<td><span class="role-badge role-' + r.role + '">' + (r.role === 'appointment_setter' ? 'APPT' : r.role) + '</span></td>' +
@@ -5293,10 +5293,10 @@ function renderTeamAssignmentPanel(allBrands) {
     return;
   }
   tbody.innerHTML = rows.map(r => {
-    const navAll = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "'})";
+    const navAll = "navToFilteredBrands({touchedBy:'" + escapeAttr(r.uname) + "'})";
     const navPending = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'pending'})";
-    const navApproved = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'approved'})";
-    const navRejected = "navToFilteredBrands({assignee:'" + escapeAttr(r.uname) + "', status:'rejected'})";
+    const navApproved = "navToFilteredBrands({decidedBy:'" + escapeAttr(r.uname) + "', status:'approved'})";
+    const navRejected = "navToFilteredBrands({decidedBy:'" + escapeAttr(r.uname) + "', status:'rejected'})";
     return '<tr>' +
       '<td><b>' + escapeHtml(r.name) + '</b><div class="muted">@' + escapeHtml(r.uname) + '</div></td>' +
       '<td><span class="role-badge role-' + r.role + '">' + (r.role === 'appointment_setter' ? 'APPT' : r.role) + '</span></td>' +
