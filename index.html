@@ -972,6 +972,10 @@
   .dash-metric.approved .num { color: var(--success); }
   .dash-metric.rejected .dot { background: var(--danger); }
   .dash-metric.rejected .num { color: var(--danger); }
+  .dash-metric.clickable { cursor: pointer; transition: background .12s, transform .1s; }
+  .dash-metric.clickable:hover:not(.empty) { background: var(--panel-3); transform: translateX(2px); }
+  .dash-upload-line.clickable { cursor: pointer; transition: opacity .12s; }
+  .dash-upload-line.clickable:hover:not(.empty) { opacity: 0.7; }
   .dash-metric.empty { opacity: 0.5; }
   .dash-metric.empty .num { color: var(--text-faint); font-weight: 500; font-size: 14px; }
   .dash-upload-line {
@@ -1221,6 +1225,15 @@
           <option value="long">15자 이상</option>
           <option value="short">15자 미만</option>
         </select>
+        <select id="filter-date-basis" title="날짜 필터 기준">
+          <option value="">날짜 기준</option>
+          <option value="decided_at">결정일 기준</option>
+          <option value="uploaded_at">업로드일 기준</option>
+          <option value="downloaded_at">다운로드일 기준</option>
+        </select>
+        <input type="date" id="filter-date-from" title="시작일" style="padding:6px 8px;font-size:12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--panel);color:var(--text);">
+        <input type="date" id="filter-date-to" title="종료일" style="padding:6px 8px;font-size:12px;border-radius:6px;border:1px solid var(--border-strong);background:var(--panel);color:var(--text);">
+        <button class="btn btn-xs btn-ghost" onclick="clearDateFilter()" title="날짜 필터 초기화" id="btn-clear-date" style="display:none;">날짜 ✕</button>
         <div class="spacer"></div>
         <span class="result-count" id="result-count"></span>
       </div>
@@ -1942,6 +1955,17 @@ function buildBrandFilter(q, f) {
     const s = String(f.search).replace(/[%_,()]/g, ' ').trim();
     if (s) {
       q = q.or('domain.ilike.%' + s + '%,categories.ilike.%' + s + '%,city.ilike.%' + s + '%,company_location.ilike.%' + s + '%');
+    }
+  }
+  // Date range filter (decided_at / uploaded_at / downloaded_at)
+  if (f.dateBasis && (f.dateFrom || f.dateTo)) {
+    const field = f.dateBasis;
+    if (f.dateFrom) q = q.gte(field, f.dateFrom + 'T00:00:00');
+    if (f.dateTo) {
+      // Inclusive end: next day midnight
+      const next = new Date(f.dateTo + 'T00:00:00');
+      next.setDate(next.getDate() + 1);
+      q = q.lt(field, next.toISOString().slice(0, 19));
     }
   }
   return q;
@@ -2899,6 +2923,9 @@ function navToFilteredBrands(opts) {
   const fcountry = document.getElementById('filter-country'); if (fcountry) fcountry.value = '';
   const fcat = document.getElementById('filter-category'); if (fcat) fcat.value = '';
   const fdl = document.getElementById('filter-domlen'); if (fdl) fdl.value = '';
+  const fdb = document.getElementById('filter-date-basis'); if (fdb) fdb.value = opts.dateBasis || '';
+  const fdf = document.getElementById('filter-date-from'); if (fdf) fdf.value = opts.dateFrom || '';
+  const fdt = document.getElementById('filter-date-to'); if (fdt) fdt.value = opts.dateTo || '';
   const fs = document.getElementById('filter-status');
   const fa = document.getElementById('filter-assignee');
   if (fs) fs.value = opts.status || '';
@@ -3638,10 +3665,24 @@ async function renderBrands() {
   }
 
   // Build current filter state
+  const dateBasisEl = document.getElementById('filter-date-basis');
+  const dateFromEl = document.getElementById('filter-date-from');
+  const dateToEl = document.getElementById('filter-date-to');
+  const btnClearDate = document.getElementById('btn-clear-date');
+  let dateBasis = dateBasisEl ? dateBasisEl.value : '';
+  const dateFrom = dateFromEl ? dateFromEl.value : '';
+  const dateTo = dateToEl ? dateToEl.value : '';
+  // Auto-pick a basis if user filled a date but didn't choose basis
+  if (!dateBasis && (dateFrom || dateTo)) {
+    dateBasis = 'decided_at';
+    if (dateBasisEl) dateBasisEl.value = dateBasis;
+  }
+  if (btnClearDate) btnClearDate.style.display = (dateFrom || dateTo || (dateBasis && dateBasis !== '')) ? '' : 'none';
   const filters = {
     status: document.getElementById('filter-status').value,
     country: document.getElementById('filter-country').value,
     category: document.getElementById('filter-category').value,
+    dateBasis, dateFrom, dateTo,
     domlen: document.getElementById('filter-domlen').value,
     assignee: aSel.classList.contains('hidden') ? '' : aSel.value,
     search: document.getElementById('search').value.trim(),
@@ -5358,17 +5399,27 @@ function drawChart(buckets) {
     }
     const todayCls = (b.dateKey && b.dateKey === todayKey) ? ' today' : '';
     const wkndCls = b.isWeekend ? ' weekend' : '';
-    const approvedRow = '<div class="dash-metric approved' + (approved ? '' : ' empty') + '">' +
+    // Compute date strings for the bucket: YYYY-MM-DD
+    const dStart = new Date(b.start);
+    const dEnd = new Date(b.end - 86400000);  // last day of bucket (inclusive)
+    const fmtDate = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const startStr = fmtDate(dStart);
+    const endStr = fmtDate(dEnd);
+    const navAttr = (status) =>
+      'onclick="navToFilteredBrands({status:\'' + status + '\', dateBasis:\'decided_at\', dateFrom:\'' + startStr + '\', dateTo:\'' + endStr + '\'})"';
+    const navUpload =
+      'onclick="navToFilteredBrands({status:\'\', dateBasis:\'uploaded_at\', dateFrom:\'' + startStr + '\', dateTo:\'' + endStr + '\'})"';
+    const approvedRow = '<div class="dash-metric approved clickable' + (approved ? '' : ' empty') + '" ' + (approved ? navAttr('approved') : '') + '>' +
       '<span class="dot"></span>' +
       '<span class="lbl">승인</span>' +
       '<span class="num">' + fmtInt(approved) + '</span>' +
     '</div>';
-    const rejectedRow = '<div class="dash-metric rejected' + (rejected ? '' : ' empty') + '">' +
+    const rejectedRow = '<div class="dash-metric rejected clickable' + (rejected ? '' : ' empty') + '" ' + (rejected ? navAttr('rejected') : '') + '>' +
       '<span class="dot"></span>' +
       '<span class="lbl">반려</span>' +
       '<span class="num">' + fmtInt(rejected) + '</span>' +
     '</div>';
-    const uploadLine = '<div class="dash-upload-line' + (uploaded ? '' : ' empty') + '">' +
+    const uploadLine = '<div class="dash-upload-line clickable' + (uploaded ? '' : ' empty') + '" ' + (uploaded ? navUpload : '') + '>' +
       '<span>업로드</span>' +
       '<span class="up-num">' + fmtInt(uploaded) + '</span>' +
     '</div>';
@@ -5488,7 +5539,15 @@ function renderUserBreakdown(all, start, end) {
 // =====================================================
 // Wire-up
 // =====================================================
-['search','filter-status','filter-country','filter-assignee','filter-category','filter-domlen'].forEach(id => {
+function clearDateFilter() {
+  ['filter-date-basis','filter-date-from','filter-date-to'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  currentPage = 1;
+  renderBrands();
+}
+
+['search','filter-status','filter-country','filter-assignee','filter-category','filter-domlen','filter-date-basis','filter-date-from','filter-date-to'].forEach(id => {
   document.addEventListener('input', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
   document.addEventListener('change', e => { if (e.target && e.target.id === id) { currentPage = 1; renderBrands(); } });
 });
