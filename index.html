@@ -1164,7 +1164,7 @@
 <div id="app" class="app">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo-wrap" id="logo-mount" onclick="switchTab('brands')" title="브랜드 목록으로"></div>
+      <div class="logo-wrap" id="logo-mount" onclick="goHome()" title="브랜드 목록으로 (필터 초기화)"></div>
       <div class="nav-divider"></div>
       <div class="tabs" id="tabs"></div>
     </div>
@@ -2918,14 +2918,22 @@ function populateViewAsUserDropdown() {
 
 function navToFilteredBrands(opts) {
   opts = opts || {};
-  // Reset all filters first for a clean state
-  const s = document.getElementById('search'); if (s) s.value = '';
-  const fcountry = document.getElementById('filter-country'); if (fcountry) fcountry.value = '';
-  const fcat = document.getElementById('filter-category'); if (fcat) fcat.value = '';
-  const fdl = document.getElementById('filter-domlen'); if (fdl) fdl.value = '';
-  const fdb = document.getElementById('filter-date-basis'); if (fdb) fdb.value = opts.dateBasis || '';
-  const fdf = document.getElementById('filter-date-from'); if (fdf) fdf.value = opts.dateFrom || '';
-  const fdt = document.getElementById('filter-date-to'); if (fdt) fdt.value = opts.dateTo || '';
+  const preserve = !!opts.preserveFilters;
+  // Reset all filters first (unless preserve mode)
+  if (!preserve) {
+    const s = document.getElementById('search'); if (s) s.value = '';
+    const fcountry = document.getElementById('filter-country'); if (fcountry) fcountry.value = '';
+    const fcat = document.getElementById('filter-category'); if (fcat) fcat.value = '';
+    const fdl = document.getElementById('filter-domlen'); if (fdl) fdl.value = '';
+    const fdb = document.getElementById('filter-date-basis'); if (fdb) fdb.value = opts.dateBasis || '';
+    const fdf = document.getElementById('filter-date-from'); if (fdf) fdf.value = opts.dateFrom || '';
+    const fdt = document.getElementById('filter-date-to'); if (fdt) fdt.value = opts.dateTo || '';
+  } else {
+    // Only override fields that are explicitly provided in opts
+    if (opts.dateBasis !== undefined) document.getElementById('filter-date-basis').value = opts.dateBasis;
+    if (opts.dateFrom !== undefined) document.getElementById('filter-date-from').value = opts.dateFrom;
+    if (opts.dateTo !== undefined) document.getElementById('filter-date-to').value = opts.dateTo;
+  }
   const fs = document.getElementById('filter-status');
   const fa = document.getElementById('filter-assignee');
   if (fs) fs.value = opts.status || '';
@@ -2943,6 +2951,18 @@ function navToFilteredBrands(opts) {
       }
     }, 100);
   }
+}
+
+function goHome() {
+  // True "home" — reset all filters + navigate to brand list
+  ['search','filter-status','filter-country','filter-category','filter-domlen','filter-date-basis','filter-date-from','filter-date-to','filter-assignee']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _viewAsUser = '';
+  const banner = document.getElementById('impersonate-banner'); if (banner) banner.classList.add('hidden');
+  const vs = document.getElementById('view-as-user'); if (vs) vs.value = '';
+  selectedBrandIds.clear();
+  currentPage = 1;
+  switchTab('brands');
 }
 
 function switchTab(tab) {
@@ -3713,13 +3733,13 @@ async function renderBrands() {
 
   // Render stat cards (server counts)
   let statsHtml =
-    '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
-    '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
-    '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\'})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
-    '<div class="stat-card unassigned clickable" onclick="navToFilteredBrands({assignee:\'__unassigned\'})"><div class="label">미할당</div><div class="value" style="color:var(--text-dim)">' + fmtInt(stats.unassigned || 0) + '</div></div>' +
-    '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
-    '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
-  if (stats.dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
+    '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\', preserveFilters:true})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
+    '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\', preserveFilters:true})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
+    '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\', preserveFilters:true})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
+    '<div class="stat-card unassigned clickable" onclick="navToFilteredBrands({assignee:\'__unassigned\', preserveFilters:true})"><div class="label">미할당</div><div class="value" style="color:var(--text-dim)">' + fmtInt(stats.unassigned || 0) + '</div></div>' +
+    '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\', preserveFilters:true})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
+    '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\', preserveFilters:true})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
+  if (stats.dupes) statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\', preserveFilters:true})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
   if (currentUser.role === 'team') {
     statsHtml += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__mine\'})"><div class="label">내가 결정한</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.mine || 0) + '</div></div>';
   }
@@ -4219,13 +4239,13 @@ async function _refreshStatsNow() {
   try {
     const stats = await loadBrandStats(_currentFilters || {});
     let html =
-      '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\'})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
-      '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\'})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
-      '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\'})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
-      '<div class="stat-card unassigned clickable" onclick="navToFilteredBrands({assignee:\'__unassigned\'})"><div class="label">미할당</div><div class="value" style="color:var(--text-dim)">' + fmtInt(stats.unassigned || 0) + '</div></div>' +
-      '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\'})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
-      '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\'})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
-    if (stats.dupes) html += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\'})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
+      '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'\', preserveFilters:true})"><div class="label">전체</div><div class="value">' + fmtInt(stats.total) + '</div></div>' +
+      '<div class="stat-card pending clickable" onclick="navToFilteredBrands({status:\'pending\', preserveFilters:true})"><div class="label">대기중</div><div class="value">' + fmtInt(stats.pending) + '</div></div>' +
+      '<div class="stat-card assigned clickable" onclick="navToFilteredBrands({status:\'__assigned\', preserveFilters:true})"><div class="label">할당됨</div><div class="value" style="color:var(--accent)">' + fmtInt(stats.assigned || 0) + '</div></div>' +
+      '<div class="stat-card unassigned clickable" onclick="navToFilteredBrands({assignee:\'__unassigned\', preserveFilters:true})"><div class="label">미할당</div><div class="value" style="color:var(--text-dim)">' + fmtInt(stats.unassigned || 0) + '</div></div>' +
+      '<div class="stat-card approved clickable" onclick="navToFilteredBrands({status:\'approved\', preserveFilters:true})"><div class="label">승인</div><div class="value">' + fmtInt(stats.approved) + '</div></div>' +
+      '<div class="stat-card rejected clickable" onclick="navToFilteredBrands({status:\'rejected\', preserveFilters:true})"><div class="label">반려</div><div class="value">' + fmtInt(stats.rejected) + '</div></div>';
+    if (stats.dupes) html += '<div class="stat-card clickable" onclick="navToFilteredBrands({status:\'__dup\', preserveFilters:true})"><div class="label">중복 업데이트</div><div class="value" style="color:var(--warning)">' + fmtInt(stats.dupes) + '</div></div>';
     if (currentUser.role === 'team') {
       html += '<div class="stat-card clickable" onclick="navToFilteredBrands({assignee:\'' + escapeAttr(currentUser.username) + '\'})"><div class="label">내 할당</div><div class="value">' + fmtInt(stats.total) + '</div></div>';
     }
