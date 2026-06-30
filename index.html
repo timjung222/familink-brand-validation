@@ -1343,7 +1343,7 @@
             <h3 style="font-size:14px;">팀원 할당 현황 <span class="muted" style="font-weight:400;font-size:12px;margin-left:6px">현재 시점</span></h3>
           </div>
           <table class="users">
-            <thead><tr><th>팀원</th><th>역할</th><th style="text-align:right">할당</th><th style="text-align:right">대기</th><th style="text-align:right">승인</th><th style="text-align:right">반려</th><th>처리율</th></tr></thead>
+            <thead><tr><th>팀원</th><th>역할</th><th style="text-align:right" title="대기 + 승인 + 반려 합계">전체 작업</th><th style="text-align:right" title="할당된 대기 작업">대기</th><th style="text-align:right" title="본인이 승인한 건수">승인</th><th style="text-align:right" title="본인이 반려한 건수">반려</th><th>처리율</th></tr></thead>
             <tbody id="dash-team-tbody"></tbody>
           </table>
         </div>
@@ -1970,6 +1970,8 @@ function buildBrandFilter(q, f) {
   if (f.country) q = q.eq('country_code', f.country);
   if (f.assignee === '__unassigned') q = q.is('assigned_to', null);
   else if (f.assignee) q = q.eq('assigned_to', f.assignee);
+  if (f.decidedBy) q = q.eq('decided_by', f.decidedBy);
+  if (f.touchedBy) q = q.or('assigned_to.eq.' + f.touchedBy + ',decided_by.eq.' + f.touchedBy);
   if (f.category) {
     const c = _escLike(f.category);
     q = q.ilike('categories', '%/' + c + '%');
@@ -2210,6 +2212,7 @@ function renderPagination(total) {
 
 // ----- Selection state -----
 let _viewAsUser = '';
+let _navOverrides = null;
 let selectedBrandIds = new Set();
 let _filteredIds = []; // IDs after filter + sort (all pages combined)
 
@@ -2943,6 +2946,7 @@ function populateViewAsUserDropdown() {
 
 function navToFilteredBrands(opts) {
   opts = opts || {};
+  _navOverrides = (opts.decidedBy || opts.touchedBy) ? { decidedBy: opts.decidedBy, touchedBy: opts.touchedBy } : null;
   const preserve = !!opts.preserveFilters;
   // Reset all filters first (unless preserve mode)
   if (!preserve) {
@@ -2982,6 +2986,7 @@ function goHome() {
   // True "home" — reset all filters + navigate to brand list
   ['search','filter-status','filter-country','filter-category','filter-domlen','filter-date-basis','filter-date-from','filter-date-to','filter-assignee']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _navOverrides = null;
   _viewAsUser = '';
   const banner = document.getElementById('impersonate-banner'); if (banner) banner.classList.add('hidden');
   const vs = document.getElementById('view-as-user'); if (vs) vs.value = '';
@@ -3728,6 +3733,8 @@ async function renderBrands() {
     country: document.getElementById('filter-country').value,
     category: document.getElementById('filter-category').value,
     dateBasis, dateFrom, dateTo,
+    decidedBy: _navOverrides && _navOverrides.decidedBy,
+    touchedBy: _navOverrides && _navOverrides.touchedBy,
     domlen: document.getElementById('filter-domlen').value,
     assignee: aSel.classList.contains('hidden') ? '' : aSel.value,
     search: document.getElementById('search').value.trim(),
