@@ -406,6 +406,13 @@
     color: var(--text-dim); border: 1px solid var(--border);
     border-radius: 4px; font-size: 11.5px; margin-right: 4px; margin-bottom: 2px;
   }
+  .dl-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: rgba(94,106,210,0.10); color: var(--accent);
+    border: 1px solid rgba(94,106,210,0.25);
+    padding: 1px 7px; border-radius: 4px; font-size: 10.5px; font-weight: 500;
+    font-feature-settings: 'tnum';
+  }
   .dup-badge {
     display: inline-flex; align-items: center; gap: 4px;
     background: var(--warning-soft); color: var(--warning);
@@ -1594,6 +1601,10 @@
       </div>
       <div style="display:flex;justify-content:space-between;color:var(--text-faint);font-size:12px;border-top:1px dashed var(--border);padding-top:8px;">
         <span>최근 다운로드 시점</span><span id="dl-last">없음</span>
+      </div>
+      <div id="dl-by-who" style="display:none;color:var(--text-dim);font-size:12px;border-top:1px dashed var(--border);padding-top:8px;">
+        <div style="margin-bottom:3px;color:var(--text-faint);">다운로드한 사람</div>
+        <div id="dl-by-who-list" style="color:var(--text);font-weight:500;">—</div>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
@@ -3095,7 +3106,7 @@ function computeDiff(oldB, newRow) {
   return diff;
 }
 
-const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by','korea_distribution','source_url','is_starred','downloaded_at']);
+const ALLOWED_BRAND_COLS = new Set(['id','domain','average_product_price_usd','categories','city','company_location','country_code','created','domain_url','emails','facebook','instagram','instagram_url','instagram_followers','linkedin_account','linkedin_url','phones','pinterest','pinterest_followers','plan','platform','platform_rank','rank','state','status','tiktok','tiktok_followers','twitter','twitter_followers','youtube','youtube_followers','review_status','assigned_to','decided_by','decided_by_name','decided_at','decision_note','pending_update','uploaded_at','uploaded_by','korea_distribution','source_url','is_starred','downloaded_at','downloaded_by']);
 function filterBrandFields(o) {
   const out = {};
   Object.keys(o).forEach(k => { if (ALLOWED_BRAND_COLS.has(k) && o[k] !== undefined) out[k] = o[k]; });
@@ -3724,9 +3735,17 @@ function renderCell(key, b, userMap, isEx) {
       return '<td data-col-key="star"><button class="star-btn ' + (b.is_starred ? 'on' : '') + '" onclick="toggleStar(\'' + b.id + '\', event)" title="' + (b.is_starred ? '중요 해제' : '중요 표시') + '">' + (b.is_starred ? '★' : '☆') + '</button></td>';
     case 'domain': {
       const dup = b.pending_update ? '<span class="dup-badge">중복 업데이트</span>' : '';
+      let dlBadge = '';
+      if (b.downloaded_at) {
+        const prof = userMap[b.downloaded_by] || {};
+        const who = escapeHtml(prof.name || b.downloaded_by || 'user');
+        const when = new Date(b.downloaded_at);
+        const dateStr = (when.getMonth()+1) + '/' + when.getDate();
+        dlBadge = '<span class="dl-badge" title="' + escapeAttr(b.downloaded_at) + '">📥 ' + who + ' ' + dateStr + '</span>';
+      }
       return '<td data-col-key="domain" class="domain-cell">' +
         '<a href="' + escapeAttr(b.domain_url || ('https://' + b.domain)) + '" target="_blank" rel="noopener">' + escapeHtml(b.domain) + '</a>' +
-        '<div class="domain-meta"><span class="muted">' + escapeHtml(b.company_location || '') + '</span> ' + dup + '</div>' +
+        '<div class="domain-meta"><span class="muted">' + escapeHtml(b.company_location || '') + '</span> ' + dup + ' ' + dlBadge + '</div>' +
       '</td>';
     }
     case 'categories': {
@@ -4594,6 +4613,18 @@ async function downloadCSV() {
   // ===== Show pre-download modal with dedup info =====
   const alreadyDownloaded = rows.filter(b => b.downloaded_at);
   const newOnes = rows.filter(b => !b.downloaded_at);
+  // Count by downloader (last person who downloaded each brand)
+  const byDownloader = {};
+  alreadyDownloaded.forEach(b => {
+    const who = b.downloaded_by || '(unknown)';
+    byDownloader[who] = (byDownloader[who] || 0) + 1;
+  });
+  const downloaderBreakdown = Object.entries(byDownloader)
+    .sort((a,b) => b[1] - a[1])
+    .map(([u, n]) => {
+      const prof = getProfiles().find(p => p.username === u);
+      return (prof ? prof.name : u) + ' (' + fmtInt(n) + ')';
+    });
   const mode = await askDownloadMode({
     total: rows.length,
     alreadyCount: alreadyDownloaded.length,
@@ -4601,6 +4632,7 @@ async function downloadCSV() {
     lastDownloadedAt: alreadyDownloaded.length
       ? alreadyDownloaded.map(b => new Date(b.downloaded_at).getTime()).reduce((a,b)=>Math.max(a,b), 0)
       : null,
+    downloaderBreakdown,
   });
   if (mode === 'cancel') return;
   if (mode === 'new_only') {
@@ -4700,14 +4732,17 @@ async function downloadCSV() {
   a.download = 'pipedrive_organizations_' + currentUser.role + '_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click(); URL.revokeObjectURL(url);
   toast(fmtInt(rows.length) + '개 Pipedrive CSV 다운로드 완료 - 표시 중...');
-  // Mark all downloaded brands with current timestamp (in chunks to avoid limits)
+  // Mark all downloaded brands with timestamp + downloader (in chunks to avoid limits)
   const nowIso = new Date().toISOString();
   const ids = rows.map(b => b.id).filter(Boolean);
   const CHUNK = 500;
   let marked = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
     const slice = ids.slice(i, i + CHUNK);
-    const { error } = await sb.from('brands').update({ downloaded_at: nowIso }).in('id', slice);
+    const { error } = await sb.from('brands').update({
+      downloaded_at: nowIso,
+      downloaded_by: currentUser.username,
+    }).in('id', slice);
     if (error) { console.warn('mark downloaded failed:', error); break; }
     marked += slice.length;
   }
@@ -4717,7 +4752,7 @@ async function downloadCSV() {
 }
 
 // ===== Pre-download mode picker modal =====
-function askDownloadMode({ total, alreadyCount, newCount, lastDownloadedAt }) {
+function askDownloadMode({ total, alreadyCount, newCount, lastDownloadedAt, downloaderBreakdown }) {
   return new Promise(resolve => {
     const modal = document.getElementById('modal-download-mode');
     if (!modal) { resolve('all'); return; }
@@ -4728,6 +4763,15 @@ function askDownloadMode({ total, alreadyCount, newCount, lastDownloadedAt }) {
     document.getElementById('dl-already').textContent = fmtInt(alreadyCount);
     document.getElementById('dl-new').textContent = fmtInt(newCount);
     document.getElementById('dl-last').textContent = lastStr;
+    const byRow = document.getElementById('dl-by-who');
+    if (byRow) {
+      if (downloaderBreakdown && downloaderBreakdown.length) {
+        byRow.style.display = '';
+        document.getElementById('dl-by-who-list').textContent = downloaderBreakdown.join(', ');
+      } else {
+        byRow.style.display = 'none';
+      }
+    }
     const btnNew = document.getElementById('dl-btn-new');
     const btnAll = document.getElementById('dl-btn-all');
     const btnCancel = document.getElementById('dl-btn-cancel');
